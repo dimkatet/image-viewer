@@ -36,12 +36,12 @@ const ImageModal: React.FC<ImageModalProps> = ({
   const [rotation, setRotation] = useState(0);
   const [uiVisible, setUiVisible] = useState(true);
   const imgRef = useRef<HTMLImageElement | null>(null);
-  const hideUITimeout = useRef<NodeJS.Timeout>();
+  const hideUITimeout = useRef<NodeJS.Timeout | null>(null);
 
   // Mouse movement handler for UI visibility
   const handleMouseMove = () => {
     setUiVisible(true);
-    clearTimeout(hideUITimeout.current);
+    if (hideUITimeout.current) clearTimeout(hideUITimeout.current);
     hideUITimeout.current = setTimeout(() => setUiVisible(false), 3000);
   };
 

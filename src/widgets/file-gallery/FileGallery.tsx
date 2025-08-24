@@ -1,5 +1,6 @@
-import React from "react";
 import { Photo } from "@/utils/storage";
+import { Download, Eye, Heart, Share2 } from "lucide-react";
+import React, { useCallback, useRef, useState } from "react";
 
 interface FileGalleryProps {
   photos: Photo[];
@@ -12,65 +13,285 @@ const FileGallery: React.FC<FileGalleryProps> = ({
   viewMode,
   onOpen,
 }) => {
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [likedPhotos, setLikedPhotos] = useState<Set<string>>(new Set());
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
+  const observerRef = useRef<IntersectionObserver>(null);
+
+  const toggleLike = (photoId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLikedPhotos((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(photoId)) {
+        newSet.delete(photoId);
+      } else {
+        newSet.add(photoId);
+      }
+      return newSet;
+    });
+  };
+
+  // Lazy loading с Intersection Observer
+  const lastImageElementRef = useCallback(
+    (node: HTMLImageElement) => {
+      if (observerRef.current) observerRef.current.disconnect();
+      observerRef.current = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              const img = entry.target as HTMLImageElement;
+              const photoId = img.dataset.photoId;
+              if (photoId && !loadedImages.has(photoId)) {
+                // Загружаем thumbnail вместо полного изображения
+                const thumbnail = img.dataset.thumbnail;
+                if (thumbnail) {
+                  img.src = thumbnail;
+                  setLoadedImages((prev) => new Set(prev).add(photoId));
+                }
+              }
+            }
+          });
+        },
+        {
+          threshold: 0.1,
+          rootMargin: "50px",
+        }
+      );
+      if (node) observerRef.current.observe(node);
+    },
+    [loadedImages]
+  );
+
+  // Placeholder для ленивых изображений
+  const ImagePlaceholder: React.FC<{
+    photo: Photo;
+    className: string;
+    onLoad?: () => void;
+  }> = ({ photo, className, onLoad }) => {
+    const [imageLoaded, setImageLoaded] = useState(false);
+    const [imageFailed, setImageFailed] = useState(false);
+
+    return (
+      <div className="relative overflow-hidden">
+        {/* Плейсхолдер с градиентом */}
+        <div
+          className={`${className} bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-cyan-500/20 animate-pulse ${
+            imageLoaded ? "opacity-0" : "opacity-100"
+          } transition-opacity duration-300`}
+        />
+
+        {/* Актуальное изображение */}
+        <img
+          ref={lastImageElementRef}
+          data-photo-id={photo.id}
+          data-thumbnail={photo.thumbnail}
+          alt={photo.title}
+          className={`${className} absolute inset-0 ${
+            imageLoaded ? "opacity-100" : "opacity-0"
+          } transition-all duration-500 group-hover:scale-110`}
+          loading="lazy"
+          onLoad={() => {
+            setImageLoaded(true);
+            if (onLoad) onLoad();
+          }}
+          onError={() => setImageFailed(true)}
+          style={{
+            // Принудительно используем только thumbnail для грида
+            objectFit: "cover",
+            imageRendering: "auto",
+          }}
+        />
+
+        {/* Индикатор HDR */}
+        {imageLoaded && !imageFailed && (
+          <div className="absolute top-2 left-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs px-2 py-1 rounded-md font-semibold shadow-lg">
+            HDR
+          </div>
+        )}
+
+        {/* Индикатор ошибки */}
+        {imageFailed && (
+          <div className="absolute inset-0 flex items-center justify-center bg-red-500/20 text-red-400 text-sm">
+            Ошибка загрузки
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (photos.length === 0) {
     return (
-      <div className="text-center py-12">
-        <span className="text-gray-500">Нет изображений</span>
+      <div className="flex flex-col items-center justify-center py-24">
+        <div className="glass rounded-3xl p-12 text-center animate-scale-in">
+          <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-blue-400/20 to-purple-500/20 flex items-center justify-center">
+            <Eye className="w-12 h-12 text-blue-400/60" />
+          </div>
+          <h3 className="text-xl font-semibold text-white/80 mb-2">
+            Галерея пуста
+          </h3>
+          <p className="text-white/50">Добавьте изображения, чтобы начать</p>
+        </div>
       </div>
     );
   }
+
   if (viewMode === "list") {
     return (
-      <ul className="divide-y divide-gray-200 bg-white rounded-lg shadow">
+      <div className="space-y-3">
         {photos.map((photo, idx) => (
-          <li
+          <div
             key={photo.id}
-            className="flex items-center justify-between px-4 py-3 hover:bg-gray-50"
+            className="glass rounded-2xl p-4 glass-hover cursor-pointer group animate-slide-in"
+            style={{ animationDelay: `${idx * 0.1}s` }}
+            onClick={() => onOpen(photo, idx)}
+            onMouseEnter={() => setHoveredId(photo.id)}
+            onMouseLeave={() => setHoveredId(null)}
           >
-            <div className="flex items-center gap-4">
-              <span className="font-mono text-gray-700">{photo.name}</span>
-              <span className="text-xs text-gray-400">
-                {photo.size ? (photo.size / 1024 / 1024).toFixed(2) : "--"} МБ
-              </span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="relative">
+                  <img
+                    src={photo.thumbnail}
+                    alt={photo.title}
+                    className="w-16 h-16 rounded-xl object-cover ring-2 ring-white/10 group-hover:ring-blue-400/50 transition-all duration-300"
+                  />
+                  <div
+                    className={`absolute inset-0 rounded-xl bg-blue-500/20 transition-opacity duration-300 ${
+                      hoveredId === photo.id ? "opacity-100" : "opacity-0"
+                    }`}
+                  ></div>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-semibold text-white group-hover:text-blue-300 transition-colors">
+                    {photo.name}
+                  </h3>
+                  <div className="flex items-center space-x-4 text-sm text-white/50">
+                    <span>
+                      {photo.size
+                        ? (photo.size / 1024 / 1024).toFixed(2)
+                        : "--"}{" "}
+                      МБ
+                    </span>
+                    <span>HDR</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <button
+                  onClick={(e) => toggleLike(photo.id, e)}
+                  className={`p-2 rounded-xl transition-all duration-200 ${
+                    likedPhotos.has(photo.id)
+                      ? "text-red-400 bg-red-400/20"
+                      : "text-white/40 hover:text-red-400 hover:bg-red-400/10"
+                  }`}
+                >
+                  <Heart
+                    className="w-4 h-4"
+                    fill={likedPhotos.has(photo.id) ? "currentColor" : "none"}
+                  />
+                </button>
+                <button className="p-2 rounded-xl text-white/40 hover:text-blue-400 hover:bg-blue-400/10 transition-all duration-200">
+                  <Share2 className="w-4 h-4" />
+                </button>
+                <button className="p-2 rounded-xl text-white/40 hover:text-green-400 hover:bg-green-400/10 transition-all duration-200">
+                  <Download className="w-4 h-4" />
+                </button>
+                <button className="btn-primary px-4 py-2 text-sm">
+                  <Eye className="w-4 h-4 mr-2" />
+                  Открыть
+                </button>
+              </div>
             </div>
-            <button
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition-colors"
-              onClick={() => onOpen(photo, idx)}
-            >
-              Смотреть
-            </button>
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
     );
   }
-  // grid
+
+  // Grid view
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {photos.map((photo, idx) => (
         <div
           key={photo.id}
-          className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 cursor-pointer overflow-hidden flex flex-col"
+          className="glass rounded-2xl overflow-hidden glass-hover cursor-pointer group animate-scale-in"
+          style={{ animationDelay: `${idx * 0.1}s` }}
           onClick={() => onOpen(photo, idx)}
+          onMouseEnter={() => setHoveredId(photo.id)}
+          onMouseLeave={() => setHoveredId(null)}
         >
-          <div className="aspect-w-4 aspect-h-3 relative w-full">
-            <img
-              src={photo.thumbnail}
-              alt={photo.title}
-              className="w-full h-40 object-cover hover:scale-105 transition-transform duration-200"
-              loading="lazy"
+          {/* Image Container */}
+          <div className="relative aspect-[4/3] overflow-hidden">
+            <ImagePlaceholder
+              photo={photo}
+              className="w-full h-full object-cover"
             />
+
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+
+            {/* Action buttons overlay */}
+            <div
+              className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${
+                hoveredId === photo.id ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={(e) => toggleLike(photo.id, e)}
+                  className={`p-3 rounded-full backdrop-blur-md transition-all duration-200 ${
+                    likedPhotos.has(photo.id)
+                      ? "bg-red-500/30 text-red-400 scale-110"
+                      : "bg-white/10 text-white hover:bg-red-500/30 hover:text-red-400"
+                  }`}
+                >
+                  <Heart
+                    className="w-5 h-5"
+                    fill={likedPhotos.has(photo.id) ? "currentColor" : "none"}
+                  />
+                </button>
+                <button className="p-3 rounded-full bg-blue-500/30 text-blue-300 backdrop-blur-md hover:bg-blue-500/50 transition-all duration-200 scale-110">
+                  <Eye className="w-5 h-5" />
+                </button>
+                <button className="p-3 rounded-full bg-white/10 text-white hover:bg-green-500/30 hover:text-green-400 backdrop-blur-md transition-all duration-200">
+                  <Download className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* HDR Badge */}
+            <div className="absolute top-3 left-3">
+              <span className="glass text-xs font-semibold px-2 py-1 rounded-lg text-blue-300 border border-blue-400/30">
+                HDR
+              </span>
+            </div>
+
+            {/* Like indicator */}
+            {likedPhotos.has(photo.id) && (
+              <div className="absolute top-3 right-3">
+                <Heart className="w-5 h-5 text-red-400" fill="currentColor" />
+              </div>
+            )}
           </div>
-          <div className="p-3 flex-1 flex flex-col justify-between">
-            <h3 className="font-semibold text-gray-900 mb-1 truncate">
+
+          {/* Content */}
+          <div className="p-5">
+            <h3 className="font-semibold text-white mb-2 truncate group-hover:text-blue-300 transition-colors">
               {photo.title}
             </h3>
-            <p className="text-xs text-gray-600 truncate">
+            <p className="text-sm text-white/60 mb-3 line-clamp-2">
               {photo.description}
             </p>
-            <span className="text-xs text-gray-400 mt-1">
-              {photo.size ? (photo.size / 1024 / 1024).toFixed(2) : "--"} МБ
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-white/40">
+                {photo.size ? (photo.size / 1024 / 1024).toFixed(2) : "--"} МБ
+              </span>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                <span className="text-xs text-white/60">Готов</span>
+              </div>
+            </div>
           </div>
         </div>
       ))}

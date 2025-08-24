@@ -145,7 +145,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
           onClick={onClose}
           className="absolute top-4 right-4 md:top-6 md:right-6 z-20 glass rounded-xl md:rounded-2xl p-2 md:p-3 hover:bg-red-500/20 hover:scale-110 transition-all duration-300 group"
         >
-          <X className="w-5 h-5 md:w-6 md:h-6 text-white group-hover:text-red-400" />
+          <X className="w-6 h-6 text-white group-hover:text-red-400" />
         </button>
 
         {/* Navigation Buttons - Hidden on small screens */}
@@ -246,32 +246,32 @@ const ImageModal: React.FC<ImageModalProps> = ({
           <div className="glass rounded-2xl px-4 py-2 flex items-center space-x-3">
             <button
               onClick={() => setIsLiked(!isLiked)}
-              className={`p-2 rounded-xl transition-all duration-300 ${
+              className={`p-2 rounded-lg transition-all duration-300 ${
                 isLiked
                   ? "text-red-400 bg-red-400/20"
                   : "text-white/60 hover:text-red-400 hover:bg-red-400/10"
               }`}
             >
               <Heart
-                className="w-5 h-5"
+                className="w-4 h-4"
                 fill={isLiked ? "currentColor" : "none"}
               />
             </button>
-            <button className="p-2 rounded-xl text-white/60 hover:text-blue-400 hover:bg-blue-400/10 transition-all duration-300">
-              <Download className="w-5 h-5" />
+            <button className="p-2 rounded-lg text-white/60 hover:text-blue-400 hover:bg-blue-400/10 transition-all duration-300">
+              <Download className="w-4 h-4" />
             </button>
-            <button className="p-2 rounded-xl text-white/60 hover:text-green-400 hover:bg-green-400/10 transition-all duration-300">
-              <Share2 className="w-5 h-5" />
+            <button className="p-2 rounded-lg text-white/60 hover:text-green-400 hover:bg-green-400/10 transition-all duration-300">
+              <Share2 className="w-4 h-4" />
             </button>
             <button
               onClick={() => setShowInfo(!showInfo)}
-              className={`p-2 rounded-xl transition-all duration-300 ${
+              className={`p-2 rounded-lg transition-all duration-300 ${
                 showInfo
                   ? "text-blue-400 bg-blue-400/20"
                   : "text-white/60 hover:text-blue-400 hover:bg-blue-400/10"
               }`}
             >
-              <Info className="w-5 h-5" />
+              <Info className="w-4 h-4" />
             </button>
           </div>
 
@@ -303,7 +303,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
         </div>
 
         {/* Mobile Bottom Controls - Only visible in portrait, adjusted position */}
-        <div className="absolute bottom-32 portrait:bottom-4 left-4 right-4 z-20 md:hidden landscape:max-md:bottom-4">
+        <div className="absolute bottom-32 portrait:bottom-6 left-4 right-4 z-20 md:hidden landscape:max-md:bottom-4">
           <div className="glass rounded-xl p-3 flex items-center justify-center space-x-4">
             <button
               onClick={() => setZoom((prev) => Math.max(prev / 1.2, 0.1))}

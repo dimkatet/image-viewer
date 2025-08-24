@@ -87,13 +87,6 @@ const ViewControls: React.FC<ViewControlsProps> = ({
             </div>
           </div>
         </div>
-
-        <div className="glass rounded-2xl px-4 py-3 animate-slide-in" style={{ animationDelay: '0.4s' }}>
-          <div className="flex items-center space-x-2">
-            <span className="text-xs text-white/50">Качество:</span>
-            <span className="text-xs text-blue-400 font-semibold">HDR</span>
-          </div>
-        </div>
       </div>
     </div>
 

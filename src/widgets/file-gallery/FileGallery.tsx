@@ -62,63 +62,6 @@ const FileGallery: React.FC<FileGalleryProps> = ({
     [loadedImages]
   );
 
-  // Placeholder для ленивых изображений
-  const ImagePlaceholder: React.FC<{
-    photo: Photo;
-    className: string;
-    onLoad?: () => void;
-  }> = ({ photo, className, onLoad }) => {
-    const [imageLoaded, setImageLoaded] = useState(false);
-    const [imageFailed, setImageFailed] = useState(false);
-
-    return (
-      <div className="relative overflow-hidden">
-        {/* Плейсхолдер с градиентом */}
-        <div
-          className={`${className} bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-cyan-500/20 animate-pulse ${
-            imageLoaded ? "opacity-0" : "opacity-100"
-          } transition-opacity duration-300`}
-        />
-
-        {/* Актуальное изображение */}
-        <img
-          ref={lastImageElementRef}
-          data-photo-id={photo.id}
-          data-thumbnail={photo.thumbnail}
-          alt={photo.title}
-          className={`${className} absolute inset-0 ${
-            imageLoaded ? "opacity-100" : "opacity-0"
-          } transition-all duration-500 group-hover:scale-110`}
-          loading="lazy"
-          onLoad={() => {
-            setImageLoaded(true);
-            if (onLoad) onLoad();
-          }}
-          onError={() => setImageFailed(true)}
-          style={{
-            // Принудительно используем только thumbnail для грида
-            objectFit: "cover",
-            imageRendering: "auto",
-          }}
-        />
-
-        {/* Индикатор HDR */}
-        {imageLoaded && !imageFailed && (
-          <div className="absolute top-2 left-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs px-2 py-1 rounded-md font-semibold shadow-lg">
-            HDR
-          </div>
-        )}
-
-        {/* Индикатор ошибки */}
-        {imageFailed && (
-          <div className="absolute inset-0 flex items-center justify-center bg-red-500/20 text-red-400 text-sm">
-            Ошибка загрузки
-          </div>
-        )}
-      </div>
-    );
-  };
-
   if (photos.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24">
@@ -223,8 +166,9 @@ const FileGallery: React.FC<FileGalleryProps> = ({
         >
           {/* Image Container */}
           <div className="relative aspect-[4/3] overflow-hidden">
-            <ImagePlaceholder
-              photo={photo}
+            <img
+              src={photo.thumbnail}
+              alt={photo.title}
               className="w-full h-full object-cover"
             />
 

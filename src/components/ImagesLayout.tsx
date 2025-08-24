@@ -14,7 +14,7 @@ export default function ImagesLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function fetchPhotos() {
       setLoading(true);
-      const { data, error } = await supabase.storage.from(BUCKET_NAME).list("");
+      const { data, error } = await supabase.storage.from(BUCKET_NAME).list("", { limit: 1000 });
       if (!error) {
         setPhotos(transformStorageData(data ?? [], SUPABASE_URL, BUCKET_NAME));
       } else {

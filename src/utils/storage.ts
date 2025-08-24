@@ -24,19 +24,22 @@ interface StorageItem {
 export const getImageUrl = (
   bucketUrl: string,
   bucketName: string,
-  fileName: string
-) => `${bucketUrl}/storage/v1/object/public/${bucketName}/${fileName}`;
+  fileName: string,
+  folder: string
+) => `${bucketUrl}/storage/v1/object/public/${bucketName}/${folder}/${fileName}`;
 
 export const getThumbnailUrl = (
   bucketUrl: string,
   bucketName: string,
-  fileName: string
-) => `${bucketUrl}/storage/v1/object/public/${bucketName}/thumbnails/${fileName}`;
+  fileName: string,
+  folder: string
+) => `${bucketUrl}/storage/v1/object/public/${bucketName}/thumbnails/${folder}/${fileName}`;
 
 export const transformStorageData = (
   storageItems: StorageItem[],
   bucketUrl: string,
-  bucketName: string
+  bucketName: string,
+  folder: string
 ): Photo[] => {
   return storageItems
     .filter((item: StorageItem) =>
@@ -45,8 +48,8 @@ export const transformStorageData = (
     .map((item: StorageItem) => ({
       id: item.id,
       name: item.name,
-      thumbnail: getThumbnailUrl(bucketUrl, bucketName, item.name),
-      full: getImageUrl(bucketUrl, bucketName, item.name),
+      thumbnail: getThumbnailUrl(bucketUrl, bucketName, item.name, folder),
+      full: getImageUrl(bucketUrl, bucketName, item.name, folder),
       title: item.name.split(".")[0],
       description: `Размер: ${(item.metadata.size as number / 1024 / 1024).toFixed(
         2

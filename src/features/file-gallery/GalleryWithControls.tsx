@@ -1,6 +1,6 @@
 import { useState } from "react";
-import ViewControls from "@/widgets/file-gallery/ViewControls";
-import FileGallery from "@/widgets/file-gallery/FileGallery";
+import ViewControls from "./ViewControls";
+import FileGallery from "./FileGallery";
 import { Photo } from "@/utils/storage";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 

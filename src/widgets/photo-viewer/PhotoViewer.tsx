@@ -1,10 +1,14 @@
-import ImagesLayout, { ImagesContext } from "@/components/ImagesLayout";
-import ImageModal from "@/widgets/photo-viewer/ImageModal";
-import ViewModalSkeleton from "@/widgets/photo-viewer/ViewModalSkeleton";
+import { ImagesContext } from "@/components/ImagesLayout";
+import ImageModal from "@/features/photo-viewer/ImageModal";
+import ViewModalSkeleton from "@/features/photo-viewer/ViewModalSkeleton";
 import { useRouter } from "next/router";
-import { ReactElement, useContext } from "react";
+import { useContext } from "react";
 
-export default function ImageByIdPage() {
+interface Props {
+  title: 'sdr' | 'hdr';
+}
+
+export default function PhotoViewer({ title }: Props) {
   const router = useRouter();
   const { id } = router.query;
   const { photos, loading } = useContext(ImagesContext);
@@ -16,12 +20,12 @@ export default function ImageByIdPage() {
   // Листание
   const goPrev = () => {
     if (currentIndex > 0) {
-      router.push(`/images/${photos[currentIndex - 1].id}`);
+      router.push(`/${title}/${photos[currentIndex - 1].id}`);
     }
   };
   const goNext = () => {
     if (currentIndex < photos.length - 1) {
-      router.push(`/images/${photos[currentIndex + 1].id}`);
+      router.push(`/${title}/${photos[currentIndex + 1].id}`);
     }
   };
 
@@ -40,7 +44,7 @@ export default function ImageByIdPage() {
       {photo && (
         <ImageModal
           photo={photo}
-          onClose={() => router.push("/images")}
+          onClose={() => router.push(`/${title}`)}
           loading={false}
           onPrev={currentIndex > 0 ? goPrev : undefined}
           onNext={currentIndex < photos.length - 1 ? goNext : undefined}
@@ -54,6 +58,3 @@ export default function ImageByIdPage() {
   );
 }
 
-ImageByIdPage.getLayout = function getLayout(page: ReactElement) {
-  return <ImagesLayout>{page}</ImagesLayout>;
-};

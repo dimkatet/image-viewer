@@ -7,16 +7,16 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const BUCKET_NAME = process.env.NEXT_PUBLIC_BUCKET_NAME!;
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-export default function ImagesLayout({ children }: { children: ReactNode }) {
+export default function ImagesLayout({ children, route }: { children: ReactNode, route: 'sdr' | 'hdr' }) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchPhotos() {
       setLoading(true);
-      const { data, error } = await supabase.storage.from(BUCKET_NAME).list("", { limit: 1000 });
+      const { data, error } = await supabase.storage.from(BUCKET_NAME).list(route, { limit: 1000 });
       if (!error) {
-        setPhotos(transformStorageData(data ?? [], SUPABASE_URL, BUCKET_NAME));
+        setPhotos(transformStorageData(data ?? [], SUPABASE_URL, BUCKET_NAME, route));
       } else {
         setPhotos([]);
       }

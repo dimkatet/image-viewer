@@ -1,6 +1,8 @@
 import { useContext, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import GalleryWithControls from "@/features/file-gallery/GalleryWithControls";
+import ImageModal from "@/features/photo-viewer/ImageModal";
+import ViewModalSkeleton from "@/features/photo-viewer/ViewModalSkeleton";
 import { ImagesContext } from "@/components/ImagesLayout";
 import { Photo } from "@/utils/storage";
 
@@ -12,13 +14,122 @@ export default function PhotoGallery({ title }: PhotoGalleryProps) {
   const { photos, loading } = useContext(ImagesContext);
   const router = useRouter();
   const [isVisible, setIsVisible] = useState(false);
+  const [preloadedImages, setPreloadedImages] = useState<Set<string>>(new Set());
+  const [modalLoading, setModalLoading] = useState(false);
+
+  // Получаем ID из query параметров
+  const photoId = router.query.photo as string;
+  const isModalOpen = !!photoId;
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
 
+  // Находим текущее фото и его индекс
+  const currentIndex = photos.findIndex((p) => String(p.id) === String(photoId));
+  const currentPhoto = currentIndex >= 0 ? photos[currentIndex] : null;
+
+  // Предзагрузка соседних изображений
+  const preloadAdjacentImages = (index: number) => {
+    const imagesToPreload: string[] = [];
+    
+    // Предзагружаем предыдущее и следующее изображение
+    if (index > 0) imagesToPreload.push(photos[index - 1].full);
+    if (index < photos.length - 1) imagesToPreload.push(photos[index + 1].full);
+    
+    // Предзагружаем еще по одному в каждую сторону для плавной навигации
+    if (index > 1) imagesToPreload.push(photos[index - 2].full);
+    if (index < photos.length - 2) imagesToPreload.push(photos[index + 2].full);
+
+    imagesToPreload.forEach((src) => {
+      if (!preloadedImages.has(src)) {
+        const img = new Image();
+        img.onload = () => {
+          setPreloadedImages(prev => new Set(prev).add(src));
+        };
+        img.src = src;
+      }
+    });
+  };
+
+  // Предзагрузка при открытии модала или смене фото
+  useEffect(() => {
+    if (currentIndex >= 0) {
+      preloadAdjacentImages(currentIndex);
+    }
+  }, [currentIndex, photos]);
+
+  // Функции навигации
   const openViewer = (photo: Photo) => {
-    router.push(`/${title}/${photo.id}`);
+    setModalLoading(true);
+    router.push(
+      {
+        pathname: router.pathname,
+        query: { ...router.query, photo: photo.id }
+      },
+      undefined,
+      { shallow: true }
+    );
+  };
+
+  const closeViewer = () => {
+    const { photo, ...restQuery } = router.query;
+    router.push(
+      {
+        pathname: router.pathname,
+        query: restQuery
+      },
+      undefined,
+      { shallow: true }
+    );
+    setModalLoading(false);
+  };
+
+  const goPrev = () => {
+    if (currentIndex > 0) {
+      const prevPhoto = photos[currentIndex - 1];
+      router.push(
+        {
+          pathname: router.pathname,
+          query: { ...router.query, photo: prevPhoto.id }
+        },
+        undefined,
+        { shallow: true }
+      );
+    }
+  };
+
+  const goNext = () => {
+    if (currentIndex < photos.length - 1) {
+      const nextPhoto = photos[currentIndex + 1];
+      router.push(
+        {
+          pathname: router.pathname,
+          query: { ...router.query, photo: nextPhoto.id }
+        },
+        undefined,
+        { shallow: true }
+      );
+    }
+  };
+
+  // Обработка клавиш для навигации когда модал закрыт
+  useEffect(() => {
+    if (!isModalOpen) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'ArrowRight' && photos.length > 0) {
+          openViewer(photos[0]);
+        }
+      };
+
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isModalOpen, photos]);
+
+  // Обработка загрузки изображения в модале
+  const handleModalImageLoad = () => {
+    setModalLoading(false);
   };
 
   if (loading) {
@@ -74,6 +185,15 @@ export default function PhotoGallery({ title }: PhotoGalleryProps) {
                   {photos.length} изображений
                 </span>
               </div>
+              
+              {/* Индикатор предзагруженных изображений */}
+              {preloadedImages.size > 0 && (
+                <div className="glass rounded-2xl px-3 py-2 animate-slide-in">
+                  <span className="text-green-400/80 text-sm font-medium">
+                    {preloadedImages.size} предзагружено
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Статистика */}
@@ -90,6 +210,14 @@ export default function PhotoGallery({ title }: PhotoGalleryProps) {
                 </div>
                 <div className="text-xs text-white/60">Качество</div>
               </div>
+              {currentPhoto && (
+                <div className="glass rounded-2xl px-4 py-3 text-center min-w-[100px] glass-hover">
+                  <div className="text-lg font-bold text-cyan-400">
+                    {currentIndex + 1}/{photos.length}
+                  </div>
+                  <div className="text-xs text-white/60">Просмотр</div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -107,24 +235,83 @@ export default function PhotoGallery({ title }: PhotoGalleryProps) {
         </div>
       </main>
 
-      {/* Floating Action Button */}
-      <div className="fixed bottom-8 right-8 z-20">
-        <button className="glass rounded-full p-4 glass-hover group">
-          <svg
-            className="w-6 h-6 text-white group-hover:rotate-180 transition-transform duration-300"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+      {/* Modal для просмотра изображений */}
+      {isModalOpen && (
+        <>
+          {!currentPhoto ? (
+            <ViewModalSkeleton />
+          ) : (
+            <ImageModal
+              photo={currentPhoto}
+              onClose={closeViewer}
+              loading={modalLoading}
+              onImgLoad={handleModalImageLoad}
+              onPrev={currentIndex > 0 ? goPrev : undefined}
+              onNext={currentIndex < photos.length - 1 ? goNext : undefined}
+              canPrev={currentIndex > 0}
+              canNext={currentIndex < photos.length - 1}
+              currentIndex={currentIndex}
+              total={photos.length}
             />
-          </svg>
-        </button>
+          )}
+        </>
+      )}
+
+      {/* Floating Action Button с индикатором предзагрузки */}
+      <div className="fixed bottom-8 right-8 z-20">
+        <div className="relative">
+          <button className="glass rounded-full p-4 glass-hover group">
+            <svg
+              className="w-6 h-6 text-white group-hover:rotate-180 transition-transform duration-300"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+              />
+            </svg>
+          </button>
+          
+          {/* Кольцо прогресса предзагрузки */}
+          {photos.length > 0 && (
+            <div className="absolute inset-0 rounded-full">
+              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                <path
+                  className="text-white/10"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  fill="none"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                />
+                <path
+                  className="text-green-400"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeDasharray={`${(preloadedImages.size / Math.min(photos.length, 10)) * 100}, 100`}
+                  strokeLinecap="round"
+                  fill="none"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                />
+              </svg>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Подсказка о навигации */}
+      {!isModalOpen && photos.length > 0 && (
+        <div className="fixed bottom-8 left-8 z-20">
+          <div className="glass rounded-2xl px-4 py-2 opacity-60 hover:opacity-100 transition-opacity duration-300">
+            <span className="text-white/60 text-sm">
+              Нажмите → чтобы начать просмотр
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Ambient Light Effects */}
       <div className="absolute inset-0 pointer-events-none">

@@ -1,18 +1,19 @@
-import React, { useEffect, useState, useRef } from "react";
+import type { Photo } from "@/utils/storage";
 import {
   ChevronLeft,
   ChevronRight,
-  X,
-  Loader,
+  ChevronUp,
   Download,
   Heart,
-  Share2,
   Info,
+  Loader,
+  RotateCw,
+  Share2,
+  X,
   ZoomIn,
   ZoomOut,
-  RotateCw,
 } from "lucide-react";
-import type { Photo } from "@/utils/storage";
+import React, { useEffect, useRef, useState } from "react";
 
 interface ImageModalProps {
   photo: Photo;
@@ -47,8 +48,26 @@ const ImageModal: React.FC<ImageModalProps> = ({
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [uiVisible, setUiVisible] = useState(true);
+  const [mobileInfoExpanded, setMobileInfoExpanded] = useState(false);
+  const [isLandscape, setIsLandscape] = useState(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const hideUITimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // Определение ориентации
+  useEffect(() => {
+    const checkOrientation = () => {
+      setIsLandscape(window.innerWidth > window.innerHeight);
+    };
+
+    checkOrientation();
+    window.addEventListener("resize", checkOrientation);
+    window.addEventListener("orientationchange", checkOrientation);
+
+    return () => {
+      window.removeEventListener("resize", checkOrientation);
+      window.removeEventListener("orientationchange", checkOrientation);
+    };
+  }, []);
 
   // Mouse movement handler for UI visibility
   const handleMouseMove = () => {
@@ -57,17 +76,26 @@ const ImageModal: React.FC<ImageModalProps> = ({
     hideUITimeout.current = setTimeout(() => setUiVisible(false), 3000);
   };
 
+  // Touch handler for mobile
+  const handleTouch = () => {
+    setUiVisible(true);
+    if (hideUITimeout.current) clearTimeout(hideUITimeout.current);
+    hideUITimeout.current = setTimeout(() => setUiVisible(false), 4000);
+  };
+
   // Reset states when photo changes
   useEffect(() => {
     setImageLoaded(false);
     setZoom(1);
     setRotation(0);
+    setMobileInfoExpanded(false);
   }, [photo.full]);
 
   // Check if image is already cached
   useEffect(() => {
     if (imgRef.current && imgRef.current.complete) {
       setImageLoaded(true);
+      onImgLoad?.();
     }
   }, [photo.full]);
 
@@ -116,6 +144,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
     <div
       className="fixed inset-0 bg-black/95 backdrop-blur-sm flex items-center justify-center z-50 select-none animate-fade-in"
       onMouseMove={handleMouseMove}
+      onTouchStart={handleTouch}
     >
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-10">
@@ -140,26 +169,26 @@ const ImageModal: React.FC<ImageModalProps> = ({
           showUI && uiVisible ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
       >
-        {/* Close Button */}
+        {/* Close Button - Адаптивный размер */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 md:top-6 md:right-6 z-20 glass rounded-xl md:rounded-2xl p-2 md:p-3 hover:bg-red-500/20 hover:scale-110 transition-all duration-300 group"
+          className="absolute top-4 right-4 md:top-6 md:right-6 z-20 glass rounded-xl md:rounded-2xl p-2 md:p-3 hover:bg-red-500/20 hover:scale-110 transition-all duration-300 group touch-manipulation"
         >
-          <X className="w-6 h-6 text-white group-hover:text-red-400" />
+          <X className="w-5 h-5 md:w-6 md:h-6 text-white group-hover:text-red-400" />
         </button>
 
-        {/* Navigation Buttons - Hidden on small screens */}
+        {/* Navigation Buttons - Улучшенное позиционирование для мобильных */}
         {onPrev && (
           <button
             onClick={onPrev}
             disabled={!canPrev}
-            className={`absolute left-2 md:left-6 top-1/2 -translate-y-1/2 z-20 glass rounded-xl md:rounded-2xl p-2 md:p-4 transition-all duration-300 group ${
+            className={`absolute left-2 md:left-6 top-1/2 -translate-y-1/2 z-20 glass rounded-xl md:rounded-2xl p-3 md:p-4 transition-all duration-300 group touch-manipulation ${
               !canPrev
                 ? "opacity-30 cursor-not-allowed"
-                : "hover:bg-blue-500/20 hover:scale-110"
+                : "hover:bg-blue-500/20 hover:scale-110 active:scale-95"
             }`}
           >
-            <ChevronLeft className="w-6 h-6 md:w-8 md:h-8 text-white group-hover:text-blue-400" />
+            <ChevronLeft className="w-5 h-5 md:w-8 md:h-8 text-white group-hover:text-blue-400" />
           </button>
         )}
 
@@ -167,24 +196,24 @@ const ImageModal: React.FC<ImageModalProps> = ({
           <button
             onClick={onNext}
             disabled={!canNext}
-            className={`absolute right-2 md:right-6 top-1/2 -translate-y-1/2 z-20 glass rounded-xl md:rounded-2xl p-2 md:p-4 transition-all duration-300 group ${
+            className={`absolute right-2 md:right-6 top-1/2 -translate-y-1/2 z-20 glass rounded-xl md:rounded-2xl p-3 md:p-4 transition-all duration-300 group touch-manipulation ${
               !canNext
                 ? "opacity-30 cursor-not-allowed"
-                : "hover:bg-blue-500/20 hover:scale-110"
+                : "hover:bg-blue-500/20 hover:scale-110 active:scale-95"
             }`}
           >
-            <ChevronRight className="w-6 h-6 md:w-8 md:h-8 text-white group-hover:text-blue-400" />
+            <ChevronRight className="w-5 h-5 md:w-8 md:h-8 text-white group-hover:text-blue-400" />
           </button>
         )}
 
-        {/* Mobile Top Bar - Completely redesigned for mobile */}
+        {/* Mobile Top Bar - Полностью переработан */}
         <div className="absolute top-4 left-4 right-16 z-20 md:hidden">
-          <div className="glass rounded-xl px-2 py-1.5 flex items-center justify-between">
-            {/* Left side - Essential actions only */}
-            <div className="flex items-center space-x-1">
+          <div className="glass rounded-xl px-3 py-2 flex items-center justify-between">
+            {/* Left side - Compact essential actions */}
+            <div className="flex items-center space-x-2">
               <button
                 onClick={() => setIsLiked(!isLiked)}
-                className={`p-1.5 rounded-lg transition-all duration-300 ${
+                className={`p-2 rounded-lg transition-all duration-300 touch-manipulation ${
                   isLiked
                     ? "text-red-400 bg-red-400/20"
                     : "text-white/60 hover:text-red-400 hover:bg-red-400/10"
@@ -195,19 +224,24 @@ const ImageModal: React.FC<ImageModalProps> = ({
                   fill={isLiked ? "currentColor" : "none"}
                 />
               </button>
+
               <button
-                onClick={() => setShowInfo(!showInfo)}
-                className={`p-1.5 rounded-lg transition-all duration-300 ${
-                  showInfo
+                onClick={() => setMobileInfoExpanded(!mobileInfoExpanded)}
+                className={`p-2 rounded-lg transition-all duration-300 touch-manipulation ${
+                  mobileInfoExpanded
                     ? "text-blue-400 bg-blue-400/20"
                     : "text-white/60 hover:text-blue-400 hover:bg-blue-400/10"
                 }`}
               >
-                <Info className="w-4 h-4" />
+                {mobileInfoExpanded ? (
+                  <ChevronUp className="w-4 h-4" />
+                ) : (
+                  <Info className="w-4 h-4" />
+                )}
               </button>
             </div>
 
-            {/* Right side - Quick info */}
+            {/* Right side - Status info */}
             <div className="flex items-center space-x-2 text-xs text-white/60">
               <span className="font-mono">{Math.round(zoom * 100)}%</span>
               {typeof currentIndex === "number" &&
@@ -219,24 +253,6 @@ const ImageModal: React.FC<ImageModalProps> = ({
                     </span>
                   </>
                 )}
-            </div>
-          </div>
-
-          {/* Additional actions - Slide down panel */}
-          <div
-            className={`mt-2 transition-all duration-300 ${
-              showInfo
-                ? "opacity-100 max-h-20"
-                : "opacity-0 max-h-0 overflow-hidden"
-            }`}
-          >
-            <div className="glass rounded-xl p-2 flex items-center justify-center space-x-2">
-              <button className="p-1.5 rounded-lg text-white/60 hover:text-blue-400 hover:bg-blue-400/10 transition-all duration-300">
-                <Download className="w-4 h-4" />
-              </button>
-              <button className="p-1.5 rounded-lg text-white/60 hover:text-green-400 hover:bg-green-400/10 transition-all duration-300">
-                <Share2 className="w-4 h-4" />
-              </button>
             </div>
           </div>
         </div>
@@ -302,25 +318,95 @@ const ImageModal: React.FC<ImageModalProps> = ({
           </div>
         </div>
 
-        {/* Mobile Bottom Controls - Only visible in portrait, adjusted position */}
-        <div className="absolute bottom-32 portrait:bottom-6 left-4 right-4 z-20 md:hidden landscape:max-md:bottom-4">
+        {/* Mobile Expanded Info Panel - Новая адаптивная панель */}
+        <div
+          className={`absolute top-16 left-4 right-4 z-20 md:hidden transition-all duration-300 ${
+            mobileInfoExpanded
+              ? "opacity-100 translate-y-0 max-h-screen"
+              : "opacity-0 -translate-y-4 max-h-0 overflow-hidden"
+          }`}
+        >
+          <div className="glass rounded-xl backdrop-blur-xl overflow-hidden">
+            {/* Image Info */}
+            <div className="p-4 border-b border-white/10">
+              <h3 className="text-lg font-semibold text-white mb-2 truncate">
+                {photo.title}
+              </h3>
+              <p className="text-sm text-white/70 line-clamp-2 mb-3">
+                {photo.description}
+              </p>
+
+              {/* Stats grid */}
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-white/60">Размер:</span>
+                  <span className="text-white">
+                    {photo.size ? (photo.size / 1024 / 1024).toFixed(2) : "--"}{" "}
+                    МБ
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/60">Формат:</span>
+                  <span className="text-white">HDR</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/60">Качество:</span>
+                  <span className="text-green-400 font-medium">Высокое</span>
+                </div>
+                {typeof currentIndex === "number" &&
+                  typeof total === "number" && (
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Позиция:</span>
+                      <span className="text-white">
+                        {currentIndex + 1} / {total}
+                      </span>
+                    </div>
+                  )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="p-3 flex items-center justify-center space-x-4">
+              <button className="p-2 rounded-lg text-white/60 hover:text-blue-400 hover:bg-blue-400/10 transition-all duration-300 touch-manipulation">
+                <Download className="w-5 h-5" />
+              </button>
+              <button className="p-2 rounded-lg text-white/60 hover:text-green-400 hover:bg-green-400/10 transition-all duration-300 touch-manipulation">
+                <Share2 className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Bottom Controls - Улучшено для разных ориентаций */}
+        <div
+          className={`absolute ${
+            isLandscape
+              ? "bottom-4 left-1/2 -translate-x-1/2"
+              : "bottom-6 left-4 right-4"
+          } z-20 md:hidden`}
+        >
           <div className="glass rounded-xl p-3 flex items-center justify-center space-x-4">
             <button
               onClick={() => setZoom((prev) => Math.max(prev / 1.2, 0.1))}
-              className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200"
+              className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200 touch-manipulation active:scale-95"
             >
               <ZoomOut className="w-5 h-5" />
             </button>
+
+            <div className="px-2 py-1 text-sm font-mono text-white/70 min-w-[50px] text-center">
+              {Math.round(zoom * 100)}%
+            </div>
+
             <button
               onClick={() => setZoom((prev) => Math.min(prev * 1.2, 5))}
-              className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200"
+              className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200 touch-manipulation active:scale-95"
             >
               <ZoomIn className="w-5 h-5" />
             </button>
             <div className="w-px h-6 bg-white/20"></div>
             <button
               onClick={() => setRotation((prev) => prev + 90)}
-              className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200"
+              className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200 touch-manipulation active:scale-95"
             >
               <RotateCw className="w-5 h-5" />
             </button>
@@ -329,11 +415,11 @@ const ImageModal: React.FC<ImageModalProps> = ({
       </div>
 
       {/* Image Container */}
-      <div className="flex justify-center items-center w-full h-full relative overflow-hidden">
+      <div className="flex justify-center items-center w-full h-full relative overflow-hidden p-4 md:p-8">
         {(!imageLoaded || loading) && (
           <div className="absolute inset-0 flex items-center justify-center z-10">
-            <div className="glass rounded-3xl p-8 animate-pulse">
-              <Loader className="w-8 h-8 animate-spin text-blue-400" />
+            <div className="glass rounded-3xl p-6 md:p-8 animate-pulse">
+              <Loader className="w-6 h-6 md:w-8 md:h-8 animate-spin text-blue-400" />
             </div>
           </div>
         )}
@@ -353,14 +439,14 @@ const ImageModal: React.FC<ImageModalProps> = ({
           draggable={false}
           onLoad={() => {
             setImageLoaded(true);
-            if (onImgLoad) onImgLoad();
+            onImgLoad?.();
           }}
         />
       </div>
 
-      {/* Bottom Info Panel */}
+      {/* Desktop Bottom Info Panel */}
       <div
-        className={`absolute hidden md:block bottom-6 left-6 right-6 z-20 transition-all duration-500  ${
+        className={`absolute hidden md:block bottom-6 left-6 right-6 z-20 transition-all duration-500 ${
           showUI && uiVisible
             ? "opacity-100 translate-y-0"
             : "opacity-0 translate-y-4 pointer-events-none"
@@ -412,7 +498,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
         </div>
       </div>
 
-      {/* Extended Info Panel */}
+      {/* Desktop Extended Info Panel */}
       {showInfo && (
         <div
           className={`absolute hidden md:block top-20 right-6 w-80 z-20 animate-slide-in transition-all duration-300 ${
@@ -447,9 +533,20 @@ const ImageModal: React.FC<ImageModalProps> = ({
         </div>
       )}
 
-      {/* Keyboard Shortcuts Hint */}
-      <div className="absolute bottom-6 right-6 glass rounded-2xl p-3 text-xs text-white/40 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+      {/* Keyboard Shortcuts Hint - Скрыто на мобильных */}
+      <div className="absolute bottom-6 right-6 glass rounded-2xl p-3 text-xs text-white/40 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none hidden md:block">
         ESC: закрыть • ←→: навигация • I: инфо • +/-: зум • R: поворот
+      </div>
+
+      {/* Mobile Swipe Indicators */}
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex space-x-1 md:hidden opacity-30">
+        {onPrev && canPrev && (
+          <ChevronLeft className="w-4 h-4 text-white animate-pulse" />
+        )}
+        <div className="px-2 text-xs text-white">Swipe</div>
+        {onNext && canNext && (
+          <ChevronRight className="w-4 h-4 text-white animate-pulse" />
+        )}
       </div>
     </div>
   );

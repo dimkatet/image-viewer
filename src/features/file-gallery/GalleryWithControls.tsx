@@ -8,7 +8,7 @@ const PAGE_SIZE_OPTIONS = [8, 12, 20, 40];
 
 interface GalleryWithControlsProps {
   photos: Photo[];
-  onOpen: (photo: Photo) => void;
+  onOpen: (photo: Photo, index: number) => void;
 }
 
 export default function GalleryWithControls({ photos, onOpen }: GalleryWithControlsProps) {
@@ -26,6 +26,13 @@ export default function GalleryWithControls({ photos, onOpen }: GalleryWithContr
       behavior: 'smooth', 
       block: 'start' 
     });
+  };
+
+  // Обработчик открытия с правильным индексом
+  const handlePhotoOpen = (photo: Photo, paginatedIndex: number) => {
+    // Вычисляем реальный индекс в общем массиве
+    const realIndex = (page - 1) * pageSize + paginatedIndex;
+    onOpen(photo, realIndex);
   };
 
   const getVisiblePages = () => {
@@ -71,7 +78,7 @@ export default function GalleryWithControls({ photos, onOpen }: GalleryWithContr
         <FileGallery
           photos={paginatedPhotos}
           viewMode={viewMode}
-          onOpen={onOpen}
+          onOpen={handlePhotoOpen}
         />
       </div>
 

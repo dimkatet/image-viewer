@@ -13,7 +13,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 interface ImageModalProps {
   photo: Photo;
@@ -51,6 +51,12 @@ const ImageModal: React.FC<ImageModalProps> = ({
   const [mobileInfoExpanded, setMobileInfoExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isLandscape, setIsLandscape] = useState(false);
+  
+  // Touch/swipe handling
+  const [touchStart, setTouchStart] = useState({ x: 0, y: 0 });
+  const [touchEnd, setTouchEnd] = useState({ x: 0, y: 0 });
+  const [isSwiping, setIsSwiping] = useState(false);
+  
   const imgRef = useRef<HTMLImageElement | null>(null);
   const hideUITimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -66,6 +72,11 @@ const ImageModal: React.FC<ImageModalProps> = ({
       
       setIsMobile(isMobileDevice);
       setIsLandscape(isLandscapeOrientation);
+      
+      // На мобильных устройствах UI скрыт по умолчанию
+      if (isMobileDevice) {
+        setUiVisible(false);
+      }
     };
 
     checkDevice();
@@ -81,23 +92,71 @@ const ImageModal: React.FC<ImageModalProps> = ({
     };
   }, []);
 
-  // Mouse movement handler for UI visibility
+  // Mouse movement handler for UI visibility (только для десктопа)
   const handleMouseMove = () => {
-    if (!isMobile) { // На мобильных устройствах не скрываем UI по движению мыши
+    if (!isMobile) {
       setUiVisible(true);
       if (hideUITimeout.current) clearTimeout(hideUITimeout.current);
       hideUITimeout.current = setTimeout(() => setUiVisible(false), 3000);
     }
   };
 
-  // Touch handler for mobile
-  const handleTouch = () => {
-    if (isMobile) {
-      setUiVisible(true);
-      if (hideUITimeout.current) clearTimeout(hideUITimeout.current);
-      hideUITimeout.current = setTimeout(() => setUiVisible(false), 4000);
+  // Swipe handlers
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    setTouchStart({ x: touch.clientX, y: touch.clientY });
+    setTouchEnd({ x: touch.clientX, y: touch.clientY });
+    setIsSwiping(false);
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStart.x && !touchStart.y) return;
+    
+    const touch = e.touches[0];
+    setTouchEnd({ x: touch.clientX, y: touch.clientY });
+    
+    const deltaX = Math.abs(touch.clientX - touchStart.x);
+    const deltaY = Math.abs(touch.clientY - touchStart.y);
+    
+    // Определяем, что это свайп (горизонтальное движение больше вертикального)
+    if (deltaX > deltaY && deltaX > 10) {
+      setIsSwiping(true);
+      // e.preventDefault(); // Предотвращаем скролл
     }
-  };
+  }, [touchStart]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!touchStart.x || !touchStart.y) return;
+    
+    const deltaX = touchEnd.x - touchStart.x;
+    const deltaY = touchEnd.y - touchStart.y;
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
+    
+    // Если это был свайп (горизонтальное движение преобладает)
+    if (isSwiping && absDeltaX > absDeltaY && absDeltaX > 50) {
+      if (deltaX > 0 && onPrev && canPrev) {
+        onPrev(); // Свайп вправо - предыдущее изображение
+      } else if (deltaX < 0 && onNext && canNext) {
+        onNext(); // Свайп влево - следующее изображение
+      }
+    } else if (!isSwiping && absDeltaX < 10 && absDeltaY < 10) {
+      // Простое нажатие (тап) - показать/скрыть UI
+      if (isMobile) {
+        setUiVisible(!uiVisible);
+        if (!uiVisible) {
+          // Автоматически скрыть UI через 4 секунды после показа
+          if (hideUITimeout.current) clearTimeout(hideUITimeout.current);
+          hideUITimeout.current = setTimeout(() => setUiVisible(false), 4000);
+        }
+      }
+    }
+    
+    // Сброс состояния
+    setTouchStart({ x: 0, y: 0 });
+    setTouchEnd({ x: 0, y: 0 });
+    setIsSwiping(false);
+  }, [touchStart, touchEnd, isSwiping, isMobile, uiVisible, onPrev, onNext, canPrev, canNext]);
 
   // Reset states when photo changes
   useEffect(() => {
@@ -162,7 +221,9 @@ const ImageModal: React.FC<ImageModalProps> = ({
     <div
       className="fixed inset-0 bg-black/95 backdrop-blur-sm flex items-center justify-center z-50 select-none animate-fade-in"
       onMouseMove={handleMouseMove}
-      onTouchStart={handleTouch}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-10">
@@ -184,18 +245,18 @@ const ImageModal: React.FC<ImageModalProps> = ({
       {/* Main UI Controls */}
       <div
         className={`transition-all duration-500 ${
-          showUI && (uiVisible || isMobile) ? "opacity-100" : "opacity-0 pointer-events-none"
+          showUI && (uiVisible || !isMobile) ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
       >
-        {/* Close Button - Адаптивный для всех устройств */}
+        {/* Close Button - Выровнен с верхним баром */}
         <button
           onClick={onClose}
-          className={`absolute z-20 glass rounded-xl p-2 hover:bg-red-500/20 hover:scale-110 transition-all duration-300 group touch-manipulation ${
+          className={`absolute z-20 glass hover:bg-red-500/20 hover:scale-110 transition-all duration-300 group touch-manipulation ${
             isMobile 
               ? isLandscape 
-                ? "top-2 right-2 md:p-3" 
-                : "top-4 right-4"
-              : "top-6 right-6 md:rounded-2xl md:p-3"
+                ? "top-2 right-2 rounded-xl h-8 px-3 ml-2" 
+                : "top-4 right-4 rounded-xl h-12 px-4 ml-4"
+              : "top-6 right-6 rounded-2xl h-12 px-4 ml-4"
           }`}
         >
           <X className={`text-white group-hover:text-red-400 ${
@@ -248,14 +309,16 @@ const ImageModal: React.FC<ImageModalProps> = ({
           </button>
         )}
 
-        {/* Mobile Top Bar - Адаптивный для разных ориентаций */}
+        {/* Mobile Top Bar - С высотой как у кнопки закрытия */}
         {isMobile && (
           <div className={`absolute z-20 ${
             isLandscape 
-              ? "top-2 left-2 right-12" 
-              : "top-4 left-4 right-16"
-          }`}>
-            <div className={`glass rounded-xl px-3 py-2 flex items-center justify-between ${
+              ? "top-2 left-2 h-8" 
+              : "top-4 left-4 h-12"
+          }`} style={{
+            right: isLandscape ? '80px' : '96px' // Оставляем место для кнопки закрытия с отступом
+          }}>
+            <div className={`glass rounded-xl px-3 py-2 flex items-center justify-between h-full ${
               isLandscape ? "text-sm" : ""
             }`}>
               {/* Left side - Compact essential actions */}
@@ -372,13 +435,13 @@ const ImageModal: React.FC<ImageModalProps> = ({
           </div>
         )}
 
-        {/* Mobile Expanded Info Panel - Адаптивный размер */}
+        {/* Mobile Expanded Info Panel */}
         {isMobile && (
           <div
             className={`absolute z-20 transition-all duration-300 ${
               isLandscape 
                 ? "top-12 left-2 right-2" 
-                : "top-16 left-4 right-4"
+                : "top-20 left-4 right-4"
             } ${
               mobileInfoExpanded
                 ? "opacity-100 translate-y-0 max-h-screen"
@@ -447,7 +510,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
           </div>
         )}
 
-        {/* Mobile Bottom Controls - Адаптивное позиционирование */}
+        {/* Mobile Bottom Controls */}
         {isMobile && (
           <div
             className={`absolute z-20 ${
@@ -490,14 +553,8 @@ const ImageModal: React.FC<ImageModalProps> = ({
         )}
       </div>
 
-      {/* Image Container */}
-      <div className={`flex justify-center items-center w-full h-full relative overflow-hidden ${
-        isMobile 
-          ? isLandscape 
-            ? "p-2" 
-            : "p-4"
-          : "p-4 md:p-8"
-      }`}>
+      {/* Image Container - Полноэкранное изображение */}
+      <div className="flex justify-center items-center w-full h-full relative overflow-hidden">
         {(!imageLoaded || loading) && (
           <div className="absolute inset-0 flex items-center justify-center z-10">
             <div className={`glass rounded-3xl animate-pulse ${
@@ -515,7 +572,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
           src={photo.full}
           alt={photo.title}
           loading="lazy"
-          className={`max-w-full max-h-full object-contain transition-all duration-500 ${
+          className={`w-full h-full object-contain transition-all duration-500 ${
             imageLoaded ? "opacity-100" : "opacity-0"
           }`}
           style={{
@@ -618,34 +675,6 @@ const ImageModal: React.FC<ImageModalProps> = ({
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Keyboard Shortcuts Hint - Только для десктопов */}
-      {!isMobile && (
-        <div className="absolute bottom-6 right-6 glass rounded-2xl p-3 text-xs text-white/40 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-          ESC: закрыть • ←→: навигация • I: инфо • +/-: зум • R: поворот
-        </div>
-      )}
-
-      {/* Mobile Swipe Indicators - Только для мобильных */}
-      {isMobile && (
-        <div className={`absolute left-1/2 -translate-x-1/2 flex space-x-1 opacity-30 ${
-          isLandscape ? "bottom-1" : "bottom-2"
-        }`}>
-          {onPrev && canPrev && (
-            <ChevronLeft className={`text-white animate-pulse ${
-              isLandscape ? "w-3 h-3" : "w-4 h-4"
-            }`} />
-          )}
-          <div className={`px-2 text-white ${
-            isLandscape ? "text-xs" : "text-xs"
-          }`}>Swipe</div>
-          {onNext && canNext && (
-            <ChevronRight className={`text-white animate-pulse ${
-              isLandscape ? "w-3 h-3" : "w-4 h-4"
-            }`} />
-          )}
         </div>
       )}
     </div>

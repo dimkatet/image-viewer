@@ -12,7 +12,10 @@ import {
   X,
   ZoomIn,
   ZoomOut,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
+
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 interface ImageModalProps {
@@ -28,6 +31,7 @@ interface ImageModalProps {
   currentIndex?: number;
   total?: number;
 }
+
 
 const ImageModal: React.FC<ImageModalProps> = ({
   photo,
@@ -51,14 +55,55 @@ const ImageModal: React.FC<ImageModalProps> = ({
   const [mobileInfoExpanded, setMobileInfoExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isLandscape, setIsLandscape] = useState(false);
-  
+  // Fullscreen state and ref
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const modalRef = useRef<HTMLDivElement | null>(null);
   // Touch/swipe handling
   const [touchStart, setTouchStart] = useState({ x: 0, y: 0 });
   const [touchEnd, setTouchEnd] = useState({ x: 0, y: 0 });
   const [isSwiping, setIsSwiping] = useState(false);
-  
   const imgRef = useRef<HTMLImageElement | null>(null);
   const hideUITimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // Fullscreen API handlers
+  const handleToggleFullscreen = useCallback(() => {
+    if (!isFullscreen) {
+      if (modalRef.current) {
+        const el = modalRef.current as HTMLElement & {
+          webkitRequestFullscreen?: () => void;
+        };
+        if (el.requestFullscreen) {
+          el.requestFullscreen();
+        } else if (el.webkitRequestFullscreen) {
+          el.webkitRequestFullscreen();
+        }
+      }
+    } else {
+      const doc = document as Document & {
+        webkitExitFullscreen?: () => void;
+        webkitFullscreenElement?: Element;
+      };
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else if (doc.webkitFullscreenElement) {
+        if (typeof doc.webkitExitFullscreen === 'function') {
+          doc.webkitExitFullscreen();
+        }
+      }
+    }
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+    };
+  }, []);
 
   // Более точное определение мобильного устройства и ориентации
   useEffect(() => {
@@ -67,18 +112,14 @@ const ImageModal: React.FC<ImageModalProps> = ({
       const isMobileDevice = 'ontouchstart' in window || 
                             navigator.maxTouchPoints > 0 ||
                             window.innerWidth <= 768;
-      
       const isLandscapeOrientation = window.innerWidth > window.innerHeight;
-      
       setIsMobile(isMobileDevice);
       setIsLandscape(isLandscapeOrientation);
-      
       // На мобильных устройствах UI скрыт по умолчанию
       if (isMobileDevice) {
         setUiVisible(false);
       }
     };
-
     checkDevice();
     window.addEventListener("resize", checkDevice);
     window.addEventListener("orientationchange", () => {
@@ -142,14 +183,9 @@ const ImageModal: React.FC<ImageModalProps> = ({
       }
     } else if (!isSwiping && absDeltaX < 10 && absDeltaY < 10) {
       // Простое нажатие (тап) - показать/скрыть UI
-      if (isMobile) {
-        setUiVisible(!uiVisible);
-        if (!uiVisible) {
-          // Автоматически скрыть UI через 4 секунды после показа
-          if (hideUITimeout.current) clearTimeout(hideUITimeout.current);
-          hideUITimeout.current = setTimeout(() => setUiVisible(false), 4000);
-        }
-      }
+      if (isMobile && !uiVisible) setUiVisible(true);
+      if (hideUITimeout.current) clearTimeout(hideUITimeout.current);
+      hideUITimeout.current = setTimeout(() => setUiVisible(false), 4000);
     }
     
     // Сброс состояния
@@ -172,7 +208,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
       setImageLoaded(true);
       onImgLoad?.();
     }
-  }, [photo.full]);
+  }, [photo.full, onImgLoad]);
 
   // Auto-hide UI только для десктопа
   useEffect(() => {
@@ -219,6 +255,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
 
   return (
     <div
+      ref={modalRef}
       className="fixed inset-0 bg-black/95 backdrop-blur-sm flex items-center justify-center z-50 select-none animate-fade-in"
       onMouseMove={handleMouseMove}
       onTouchStart={handleTouchStart}
@@ -254,7 +291,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
           className={`absolute z-20 glass hover:bg-red-500/20 hover:scale-110 transition-all duration-300 group touch-manipulation ${
             isMobile 
               ? isLandscape 
-                ? "top-2 right-2 rounded-xl h-8 px-3 ml-2" 
+                ? "top-2 right-2 rounded-xl h-10 px-3 ml-2" 
                 : "top-4 right-4 rounded-xl h-12 px-4 ml-4"
               : "top-6 right-6 rounded-2xl h-12 px-4 ml-4"
           }`}
@@ -313,10 +350,10 @@ const ImageModal: React.FC<ImageModalProps> = ({
         {isMobile && (
           <div className={`absolute z-20 ${
             isLandscape 
-              ? "top-2 left-2 h-8" 
+              ? "top-2 left-2 h-10" 
               : "top-4 left-4 h-12"
           }`} style={{
-            right: isLandscape ? '80px' : '96px' // Оставляем место для кнопки закрытия с отступом
+            right: isLandscape ? '56px' : '80px' // Оставляем место для кнопки закрытия с отступом
           }}>
             <div className={`glass rounded-xl px-3 py-2 flex items-center justify-between h-full ${
               isLandscape ? "text-sm" : ""
@@ -349,6 +386,19 @@ const ImageModal: React.FC<ImageModalProps> = ({
                     <ChevronUp className={isLandscape ? "w-3 h-3" : "w-4 h-4"} />
                   ) : (
                     <Info className={isLandscape ? "w-3 h-3" : "w-4 h-4"} />
+                  )}
+                </button>
+
+                {/* Fullscreen button for mobile */}
+                <button
+                  onClick={handleToggleFullscreen}
+                  className={`p-2 rounded-lg transition-all duration-300 touch-manipulation text-white/60 hover:text-yellow-400 hover:bg-yellow-400/10`}
+                  title={isFullscreen ? "Выйти из полноэкранного режима" : "Полноэкранный режим"}
+                >
+                  {isFullscreen ? (
+                    <Minimize2 className={isLandscape ? "w-3 h-3" : "w-4 h-4"} />
+                  ) : (
+                    <Maximize2 className={isLandscape ? "w-3 h-3" : "w-4 h-4"} />
                   )}
                 </button>
               </div>
@@ -404,6 +454,18 @@ const ImageModal: React.FC<ImageModalProps> = ({
                 }`}
               >
                 <Info className="w-4 h-4" />
+              </button>
+              {/* Fullscreen button */}
+              <button
+                onClick={handleToggleFullscreen}
+                className={`p-2 rounded-lg text-white/60 hover:text-yellow-400 hover:bg-yellow-400/10 transition-all duration-300`}
+                title={isFullscreen ? "Выйти из полноэкранного режима" : "Полноэкранный режим"}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="w-4 h-4" />
+                ) : (
+                  <Maximize2 className="w-4 h-4" />
+                )}
               </button>
             </div>
 

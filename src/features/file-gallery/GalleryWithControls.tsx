@@ -1,8 +1,8 @@
 import { useState } from "react";
 import ViewControls from "./ViewControls";
 import FileGallery from "./FileGallery";
-import { Photo } from "@/utils/storage";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Photo } from "@/utils/api";
 
 const PAGE_SIZE_OPTIONS = [8, 12, 20, 40];
 

@@ -1,0 +1,67 @@
+const BASE_URL = "http://vm75064.vpsone.xyz:8080";
+const USERNAME = "image-viewer";
+const PASSWORD = "dim_tet_211";
+const DIR_NAME = "images";
+
+const SHARE_ID = "jTF2uRtE";
+
+export type FileInfo = {
+  path: string;
+  name: string;
+  size: number;
+  extension: string;
+  modified: string;
+  mode: number;
+  isDir: boolean;
+  isSymlink: boolean;
+  type: string;
+};
+
+type FilesResponse = {
+  items: FileInfo[];
+};
+
+export type Photo = FileInfo & {
+  id: string;
+  url: string;
+  thumbnailUrl: string;
+};
+
+export const fetchListOfFiles = async (
+  path: string
+): Promise<{ photos: Photo[]; success: boolean }> => {
+  const loginRes = await fetch(`${BASE_URL}/api/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: USERNAME, password: PASSWORD }),
+  });
+
+  if (!loginRes.ok) {
+    return { photos: [], success: false };
+  }
+  const token = await loginRes.text();
+
+  const filesRes = await fetch(
+    `${BASE_URL}/api/resources/${DIR_NAME}/${path}`,
+    {
+      headers: { Cookie: `auth=${token}` },
+    }
+  );
+
+  console.log(filesRes);
+  if (!filesRes.ok) {
+    return { photos: [], success: false };
+  }
+
+  const files: FilesResponse = await filesRes.json();
+  const filesWithThumbnails = files.items.map((file) => ({
+    ...file,
+    id: encodeURIComponent(file.name),
+    url: `${BASE_URL}/api/public/dl/${SHARE_ID}/${path}/${file.name}`,
+    thumbnailUrl: `${BASE_URL}/api/public/dl/${SHARE_ID}/thumbnails/${path}/${file.name}`,
+  }));
+  return {
+    photos: filesWithThumbnails || [],
+    success: true,
+  };
+};

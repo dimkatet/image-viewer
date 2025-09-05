@@ -1,4 +1,5 @@
-import { Photo } from "@/utils/storage";
+import { Photo } from "@/utils/api";
+import Image from "next/image";
 import { Download, Eye, Heart, Share2 } from "lucide-react";
 import React, { useCallback, useRef, useState } from "react";
 
@@ -93,9 +94,10 @@ const FileGallery: React.FC<FileGalleryProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <div className="relative">
-                  <img
-                    src={photo.thumbnail}
-                    alt={photo.title}
+                  <Image
+                    fill
+                    src={photo.thumbnailUrl}
+                    alt={photo.name}
                     className="w-16 h-16 rounded-xl object-cover ring-2 ring-white/10 group-hover:ring-blue-400/50 transition-all duration-300"
                   />
                   <div
@@ -166,9 +168,10 @@ const FileGallery: React.FC<FileGalleryProps> = ({
         >
           {/* Image Container */}
           <div className="relative aspect-[4/3] overflow-hidden">
-            <img
-              src={photo.thumbnail}
-              alt={photo.title}
+            <Image
+              fill
+              src={photo.thumbnailUrl}
+              alt={photo.name}
               className="w-full h-full object-cover"
             />
 
@@ -222,11 +225,11 @@ const FileGallery: React.FC<FileGalleryProps> = ({
           {/* Content */}
           <div className="p-5">
             <h3 className="font-semibold text-white mb-2 truncate group-hover:text-blue-300 transition-colors">
-              {photo.title}
+              {photo.name}
             </h3>
-            <p className="text-sm text-white/60 mb-3 line-clamp-2">
-              {photo.description}
-            </p>
+            {/* <p className="text-sm text-white/60 mb-3 line-clamp-2">
+              {photo}
+            </p> */}
             <div className="flex items-center justify-between">
               <span className="text-xs text-white/40">
                 {photo.size ? (photo.size / 1024 / 1024).toFixed(2) : "--"} МБ

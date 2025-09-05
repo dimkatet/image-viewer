@@ -1,20 +1,22 @@
-import { useContext, useEffect, useState } from "react";
-import { useRouter } from "next/router";
 import GalleryWithControls from "@/features/file-gallery/GalleryWithControls";
 import ImageModal from "@/features/photo-viewer/ImageModal";
 import ViewModalSkeleton from "@/features/photo-viewer/ViewModalSkeleton";
-import { ImagesContext } from "@/components/ImagesLayout";
-import { Photo } from "@/utils/storage";
+import { Photo } from "@/utils/api";
+import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
 
 interface PhotoGalleryProps {
   title: string;
+  photos: Photo[];
 }
 
-export default function PhotoGallery({ title }: PhotoGalleryProps) {
-  const { photos, loading } = useContext(ImagesContext);
+export default function PhotoGallery({ title, photos }: PhotoGalleryProps) {
+  // const { photos, loading } = useContext(ImagesContext);
   const router = useRouter();
   const [isVisible, setIsVisible] = useState(false);
-  const [preloadedImages, setPreloadedImages] = useState<Set<string>>(new Set());
+  const [preloadedImages, setPreloadedImages] = useState<Set<string>>(
+    new Set()
+  );
   const [modalLoading, setModalLoading] = useState(false);
 
   // Получаем ID из query параметров
@@ -26,17 +28,19 @@ export default function PhotoGallery({ title }: PhotoGalleryProps) {
   }, []);
 
   // Находим текущее фото и его индекс
-  const currentIndex = photos.findIndex((p) => String(p.id) === String(photoId));
+  const currentIndex = photos.findIndex(
+    (p) => String(p.id) === String(photoId)
+  );
   const currentPhoto = currentIndex >= 0 ? photos[currentIndex] : null;
 
   // Предзагрузка соседних изображений
   const preloadAdjacentImages = (index: number) => {
     const imagesToPreload: string[] = [];
-    
+
     // Предзагружаем предыдущее и следующее изображение
     if (index > 0) imagesToPreload.push(photos[index - 1].full);
     if (index < photos.length - 1) imagesToPreload.push(photos[index + 1].full);
-    
+
     // Предзагружаем еще по одному в каждую сторону для плавной навигации
     if (index > 1) imagesToPreload.push(photos[index - 2].full);
     if (index < photos.length - 2) imagesToPreload.push(photos[index + 2].full);
@@ -45,7 +49,7 @@ export default function PhotoGallery({ title }: PhotoGalleryProps) {
       if (!preloadedImages.has(src)) {
         const img = new Image();
         img.onload = () => {
-          setPreloadedImages(prev => new Set(prev).add(src));
+          setPreloadedImages((prev) => new Set(prev).add(src));
         };
         img.src = src;
       }
@@ -65,7 +69,7 @@ export default function PhotoGallery({ title }: PhotoGalleryProps) {
     router.push(
       {
         pathname: router.pathname,
-        query: { ...router.query, photo: photo.id }
+        query: { ...router.query, photo: photo.id },
       },
       undefined,
       { shallow: true }
@@ -77,7 +81,7 @@ export default function PhotoGallery({ title }: PhotoGalleryProps) {
     router.push(
       {
         pathname: router.pathname,
-        query: restQuery
+        query: restQuery,
       },
       undefined,
       { shallow: true }
@@ -91,7 +95,7 @@ export default function PhotoGallery({ title }: PhotoGalleryProps) {
       router.push(
         {
           pathname: router.pathname,
-          query: { ...router.query, photo: prevPhoto.id }
+          query: { ...router.query, photo: prevPhoto.id },
         },
         undefined,
         { shallow: true }
@@ -105,7 +109,7 @@ export default function PhotoGallery({ title }: PhotoGalleryProps) {
       router.push(
         {
           pathname: router.pathname,
-          query: { ...router.query, photo: nextPhoto.id }
+          query: { ...router.query, photo: nextPhoto.id },
         },
         undefined,
         { shallow: true }
@@ -117,13 +121,13 @@ export default function PhotoGallery({ title }: PhotoGalleryProps) {
   useEffect(() => {
     if (!isModalOpen) {
       const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'ArrowRight' && photos.length > 0) {
+        if (e.key === "ArrowRight" && photos.length > 0) {
           openViewer(photos[0]);
         }
       };
 
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
     }
   }, [isModalOpen, photos]);
 
@@ -132,20 +136,20 @@ export default function PhotoGallery({ title }: PhotoGalleryProps) {
     setModalLoading(false);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="glass rounded-3xl p-8 animate-pulse">
-          <div className="flex items-center space-x-4">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 animate-spin"></div>
-            <span className="text-xl font-light text-white/80">
-              Загружается магия...
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // if (loading) {
+  //   return (
+  //     <div className="min-h-screen flex items-center justify-center">
+  //       <div className="glass rounded-3xl p-8 animate-pulse">
+  //         <div className="flex items-center space-x-4">
+  //           <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 animate-spin"></div>
+  //           <span className="text-xl font-light text-white/80">
+  //             Загружается магия...
+  //           </span>
+  //         </div>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -185,7 +189,7 @@ export default function PhotoGallery({ title }: PhotoGalleryProps) {
                   {photos.length} изображений
                 </span>
               </div>
-              
+
               {/* Индикатор предзагруженных изображений */}
               {preloadedImages.size > 0 && (
                 <div className="glass rounded-2xl px-3 py-2 animate-slide-in">
@@ -275,11 +279,14 @@ export default function PhotoGallery({ title }: PhotoGalleryProps) {
               />
             </svg>
           </button>
-          
+
           {/* Кольцо прогресса предзагрузки */}
           {photos.length > 0 && (
             <div className="absolute inset-0 rounded-full">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+              <svg
+                className="w-full h-full transform -rotate-90"
+                viewBox="0 0 36 36"
+              >
                 <path
                   className="text-white/10"
                   stroke="currentColor"
@@ -291,7 +298,9 @@ export default function PhotoGallery({ title }: PhotoGalleryProps) {
                   className="text-green-400"
                   stroke="currentColor"
                   strokeWidth="2"
-                  strokeDasharray={`${(preloadedImages.size / Math.min(photos.length, 10)) * 100}, 100`}
+                  strokeDasharray={`${
+                    (preloadedImages.size / Math.min(photos.length, 10)) * 100
+                  }, 100`}
                   strokeLinecap="round"
                   fill="none"
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"

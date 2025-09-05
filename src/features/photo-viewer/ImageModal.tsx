@@ -1,4 +1,4 @@
-import type { Photo } from "@/utils/storage";
+import { Photo } from "@/utils/api";
 import {
   ChevronLeft,
   ChevronRight,
@@ -7,14 +7,15 @@ import {
   Heart,
   Info,
   Loader,
+  Maximize2,
+  Minimize2,
   RotateCw,
   Share2,
   X,
   ZoomIn,
   ZoomOut,
-  Maximize2,
-  Minimize2,
 } from "lucide-react";
+import Image from "next/image";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
@@ -31,7 +32,6 @@ interface ImageModalProps {
   currentIndex?: number;
   total?: number;
 }
-
 
 const ImageModal: React.FC<ImageModalProps> = ({
   photo,
@@ -86,7 +86,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
       if (document.fullscreenElement) {
         document.exitFullscreen();
       } else if (doc.webkitFullscreenElement) {
-        if (typeof doc.webkitExitFullscreen === 'function') {
+        if (typeof doc.webkitExitFullscreen === "function") {
           doc.webkitExitFullscreen();
         }
       }
@@ -101,7 +101,10 @@ const ImageModal: React.FC<ImageModalProps> = ({
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
-      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+      document.removeEventListener(
+        "webkitfullscreenchange",
+        handleFullscreenChange
+      );
     };
   }, []);
 
@@ -109,9 +112,10 @@ const ImageModal: React.FC<ImageModalProps> = ({
   useEffect(() => {
     const checkDevice = () => {
       // Проверяем как размер экрана, так и touch-возможности
-      const isMobileDevice = 'ontouchstart' in window || 
-                            navigator.maxTouchPoints > 0 ||
-                            window.innerWidth <= 768;
+      const isMobileDevice =
+        "ontouchstart" in window ||
+        navigator.maxTouchPoints > 0 ||
+        window.innerWidth <= 768;
       const isLandscapeOrientation = window.innerWidth > window.innerHeight;
       setIsMobile(isMobileDevice);
       setIsLandscape(isLandscapeOrientation);
@@ -150,30 +154,33 @@ const ImageModal: React.FC<ImageModalProps> = ({
     setIsSwiping(false);
   }, []);
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!touchStart.x && !touchStart.y) return;
-    
-    const touch = e.touches[0];
-    setTouchEnd({ x: touch.clientX, y: touch.clientY });
-    
-    const deltaX = Math.abs(touch.clientX - touchStart.x);
-    const deltaY = Math.abs(touch.clientY - touchStart.y);
-    
-    // Определяем, что это свайп (горизонтальное движение больше вертикального)
-    if (deltaX > deltaY && deltaX > 10) {
-      setIsSwiping(true);
-      // e.preventDefault(); // Предотвращаем скролл
-    }
-  }, [touchStart]);
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (!touchStart.x && !touchStart.y) return;
+
+      const touch = e.touches[0];
+      setTouchEnd({ x: touch.clientX, y: touch.clientY });
+
+      const deltaX = Math.abs(touch.clientX - touchStart.x);
+      const deltaY = Math.abs(touch.clientY - touchStart.y);
+
+      // Определяем, что это свайп (горизонтальное движение больше вертикального)
+      if (deltaX > deltaY && deltaX > 10) {
+        setIsSwiping(true);
+        // e.preventDefault(); // Предотвращаем скролл
+      }
+    },
+    [touchStart]
+  );
 
   const handleTouchEnd = useCallback(() => {
     if (!touchStart.x || !touchStart.y) return;
-    
+
     const deltaX = touchEnd.x - touchStart.x;
     const deltaY = touchEnd.y - touchStart.y;
     const absDeltaX = Math.abs(deltaX);
     const absDeltaY = Math.abs(deltaY);
-    
+
     // Если это был свайп (горизонтальное движение преобладает)
     if (isSwiping && absDeltaX > absDeltaY && absDeltaX > 50) {
       if (deltaX > 0 && onPrev && canPrev) {
@@ -187,12 +194,22 @@ const ImageModal: React.FC<ImageModalProps> = ({
       if (hideUITimeout.current) clearTimeout(hideUITimeout.current);
       hideUITimeout.current = setTimeout(() => setUiVisible(false), 4000);
     }
-    
+
     // Сброс состояния
     setTouchStart({ x: 0, y: 0 });
     setTouchEnd({ x: 0, y: 0 });
     setIsSwiping(false);
-  }, [touchStart, touchEnd, isSwiping, isMobile, uiVisible, onPrev, onNext, canPrev, canNext]);
+  }, [
+    touchStart,
+    touchEnd,
+    isSwiping,
+    isMobile,
+    uiVisible,
+    onPrev,
+    onNext,
+    canPrev,
+    canNext,
+  ]);
 
   // Reset states when photo changes
   useEffect(() => {
@@ -282,23 +299,27 @@ const ImageModal: React.FC<ImageModalProps> = ({
       {/* Main UI Controls */}
       <div
         className={`transition-all duration-500 ${
-          showUI && (uiVisible || !isMobile) ? "opacity-100" : "opacity-0 pointer-events-none"
+          showUI && (uiVisible || !isMobile)
+            ? "opacity-100"
+            : "opacity-0 pointer-events-none"
         }`}
       >
         {/* Close Button - Выровнен с верхним баром */}
         <button
           onClick={onClose}
           className={`absolute z-20 glass hover:bg-red-500/20 hover:scale-110 transition-all duration-300 group touch-manipulation ${
-            isMobile 
-              ? isLandscape 
-                ? "top-2 right-2 rounded-xl h-10 px-3 ml-2" 
+            isMobile
+              ? isLandscape
+                ? "top-2 right-2 rounded-xl h-10 px-3 ml-2"
                 : "top-4 right-4 rounded-xl h-12 px-4 ml-4"
               : "top-6 right-6 rounded-2xl h-12 px-4 ml-4"
           }`}
         >
-          <X className={`text-white group-hover:text-red-400 ${
-            isMobile && isLandscape ? "w-4 h-4" : "w-5 h-5 md:w-6 md:h-6"
-          }`} />
+          <X
+            className={`text-white group-hover:text-red-400 ${
+              isMobile && isLandscape ? "w-4 h-4" : "w-5 h-5 md:w-6 md:h-6"
+            }`}
+          />
         </button>
 
         {/* Navigation Buttons - Адаптивное позиционирование */}
@@ -308,8 +329,8 @@ const ImageModal: React.FC<ImageModalProps> = ({
             disabled={!canPrev}
             className={`absolute top-1/2 -translate-y-1/2 z-20 glass rounded-xl transition-all duration-300 group touch-manipulation ${
               isMobile
-                ? isLandscape 
-                  ? "left-1 p-2" 
+                ? isLandscape
+                  ? "left-1 p-2"
                   : "left-2 p-3"
                 : "left-6 md:rounded-2xl p-3 md:p-4"
             } ${
@@ -318,9 +339,11 @@ const ImageModal: React.FC<ImageModalProps> = ({
                 : "hover:bg-blue-500/20 hover:scale-110 active:scale-95"
             }`}
           >
-            <ChevronLeft className={`text-white group-hover:text-blue-400 ${
-              isMobile && isLandscape ? "w-4 h-4" : "w-5 h-5 md:w-8 md:h-8"
-            }`} />
+            <ChevronLeft
+              className={`text-white group-hover:text-blue-400 ${
+                isMobile && isLandscape ? "w-4 h-4" : "w-5 h-5 md:w-8 md:h-8"
+              }`}
+            />
           </button>
         )}
 
@@ -330,8 +353,8 @@ const ImageModal: React.FC<ImageModalProps> = ({
             disabled={!canNext}
             className={`absolute top-1/2 -translate-y-1/2 z-20 glass rounded-xl transition-all duration-300 group touch-manipulation ${
               isMobile
-                ? isLandscape 
-                  ? "right-1 p-2" 
+                ? isLandscape
+                  ? "right-1 p-2"
                   : "right-2 p-3"
                 : "right-6 md:rounded-2xl p-3 md:p-4"
             } ${
@@ -340,24 +363,29 @@ const ImageModal: React.FC<ImageModalProps> = ({
                 : "hover:bg-blue-500/20 hover:scale-110 active:scale-95"
             }`}
           >
-            <ChevronRight className={`text-white group-hover:text-blue-400 ${
-              isMobile && isLandscape ? "w-4 h-4" : "w-5 h-5 md:w-8 md:h-8"
-            }`} />
+            <ChevronRight
+              className={`text-white group-hover:text-blue-400 ${
+                isMobile && isLandscape ? "w-4 h-4" : "w-5 h-5 md:w-8 md:h-8"
+              }`}
+            />
           </button>
         )}
 
         {/* Mobile Top Bar - С высотой как у кнопки закрытия */}
         {isMobile && (
-          <div className={`absolute z-20 ${
-            isLandscape 
-              ? "top-2 left-2 h-10" 
-              : "top-4 left-4 h-12"
-          }`} style={{
-            right: isLandscape ? '56px' : '80px' // Оставляем место для кнопки закрытия с отступом
-          }}>
-            <div className={`glass rounded-xl px-3 py-2 flex items-center justify-between h-full ${
-              isLandscape ? "text-sm" : ""
-            }`}>
+          <div
+            className={`absolute z-20 ${
+              isLandscape ? "top-2 left-2 h-10" : "top-4 left-4 h-12"
+            }`}
+            style={{
+              right: isLandscape ? "56px" : "80px", // Оставляем место для кнопки закрытия с отступом
+            }}
+          >
+            <div
+              className={`glass rounded-xl px-3 py-2 flex items-center justify-between h-full ${
+                isLandscape ? "text-sm" : ""
+              }`}
+            >
               {/* Left side - Compact essential actions */}
               <div className="flex items-center space-x-2">
                 <button
@@ -383,7 +411,9 @@ const ImageModal: React.FC<ImageModalProps> = ({
                   }`}
                 >
                   {mobileInfoExpanded ? (
-                    <ChevronUp className={isLandscape ? "w-3 h-3" : "w-4 h-4"} />
+                    <ChevronUp
+                      className={isLandscape ? "w-3 h-3" : "w-4 h-4"}
+                    />
                   ) : (
                     <Info className={isLandscape ? "w-3 h-3" : "w-4 h-4"} />
                   )}
@@ -393,20 +423,30 @@ const ImageModal: React.FC<ImageModalProps> = ({
                 <button
                   onClick={handleToggleFullscreen}
                   className={`p-2 rounded-lg transition-all duration-300 touch-manipulation text-white/60 hover:text-yellow-400 hover:bg-yellow-400/10`}
-                  title={isFullscreen ? "Выйти из полноэкранного режима" : "Полноэкранный режим"}
+                  title={
+                    isFullscreen
+                      ? "Выйти из полноэкранного режима"
+                      : "Полноэкранный режим"
+                  }
                 >
                   {isFullscreen ? (
-                    <Minimize2 className={isLandscape ? "w-3 h-3" : "w-4 h-4"} />
+                    <Minimize2
+                      className={isLandscape ? "w-3 h-3" : "w-4 h-4"}
+                    />
                   ) : (
-                    <Maximize2 className={isLandscape ? "w-3 h-3" : "w-4 h-4"} />
+                    <Maximize2
+                      className={isLandscape ? "w-3 h-3" : "w-4 h-4"}
+                    />
                   )}
                 </button>
               </div>
 
               {/* Right side - Status info */}
-              <div className={`flex items-center space-x-2 text-white/60 ${
-                isLandscape ? "text-xs" : "text-xs"
-              }`}>
+              <div
+                className={`flex items-center space-x-2 text-white/60 ${
+                  isLandscape ? "text-xs" : "text-xs"
+                }`}
+              >
                 <span className="font-mono">{Math.round(zoom * 100)}%</span>
                 {typeof currentIndex === "number" &&
                   typeof total === "number" && (
@@ -459,7 +499,11 @@ const ImageModal: React.FC<ImageModalProps> = ({
               <button
                 onClick={handleToggleFullscreen}
                 className={`p-2 rounded-lg text-white/60 hover:text-yellow-400 hover:bg-yellow-400/10 transition-all duration-300`}
-                title={isFullscreen ? "Выйти из полноэкранного режима" : "Полноэкранный режим"}
+                title={
+                  isFullscreen
+                    ? "Выйти из полноэкранного режима"
+                    : "Полноэкранный режим"
+                }
               >
                 {isFullscreen ? (
                   <Minimize2 className="w-4 h-4" />
@@ -501,9 +545,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
         {isMobile && (
           <div
             className={`absolute z-20 transition-all duration-300 ${
-              isLandscape 
-                ? "top-12 left-2 right-2" 
-                : "top-20 left-4 right-4"
+              isLandscape ? "top-12 left-2 right-2" : "top-20 left-4 right-4"
             } ${
               mobileInfoExpanded
                 ? "opacity-100 translate-y-0 max-h-screen"
@@ -512,28 +554,39 @@ const ImageModal: React.FC<ImageModalProps> = ({
           >
             <div className="glass rounded-xl backdrop-blur-xl overflow-hidden">
               {/* Image Info */}
-              <div className={`border-b border-white/10 ${
-                isLandscape ? "p-3" : "p-4"
-              }`}>
-                <h3 className={`font-semibold text-white mb-2 truncate ${
-                  isLandscape ? "text-base" : "text-lg"
-                }`}>
-                  {photo.title}
+              <div
+                className={`border-b border-white/10 ${
+                  isLandscape ? "p-3" : "p-4"
+                }`}
+              >
+                <h3
+                  className={`font-semibold text-white mb-2 truncate ${
+                    isLandscape ? "text-base" : "text-lg"
+                  }`}
+                >
+                  {photo.name}
                 </h3>
-                <p className={`text-white/70 line-clamp-2 mb-3 ${
-                  isLandscape ? "text-xs" : "text-sm"
-                }`}>
-                  {photo.description}
+                <p
+                  className={`text-white/70 line-clamp-2 mb-3 ${
+                    isLandscape ? "text-xs" : "text-sm"
+                  }`}
+                >
+                  {/* TODO */}
+                  {photo.name}
                 </p>
 
                 {/* Stats grid */}
-                <div className={`grid grid-cols-2 gap-3 ${
-                  isLandscape ? "text-xs" : "text-sm"
-                }`}>
+                <div
+                  className={`grid grid-cols-2 gap-3 ${
+                    isLandscape ? "text-xs" : "text-sm"
+                  }`}
+                >
                   <div className="flex justify-between">
                     <span className="text-white/60">Размер:</span>
                     <span className="text-white">
-                      {photo.size ? (photo.size / 1024 / 1024).toFixed(2) : "--"}{" "}
+                      {photo.size
+                        ? (photo.size / 1024 / 1024).toFixed(2)
+                        : "--"}{" "}
                       МБ
                     </span>
                   </div>
@@ -558,9 +611,11 @@ const ImageModal: React.FC<ImageModalProps> = ({
               </div>
 
               {/* Actions */}
-              <div className={`flex items-center justify-center space-x-4 ${
-                isLandscape ? "p-2" : "p-3"
-              }`}>
+              <div
+                className={`flex items-center justify-center space-x-4 ${
+                  isLandscape ? "p-2" : "p-3"
+                }`}
+              >
                 <button className="p-2 rounded-lg text-white/60 hover:text-blue-400 hover:bg-blue-400/10 transition-all duration-300 touch-manipulation">
                   <Download className={isLandscape ? "w-4 h-4" : "w-5 h-5"} />
                 </button>
@@ -581,9 +636,11 @@ const ImageModal: React.FC<ImageModalProps> = ({
                 : "bottom-6 left-4 right-4"
             }`}
           >
-            <div className={`glass rounded-xl flex items-center justify-center space-x-4 ${
-              isLandscape ? "p-2" : "p-3"
-            }`}>
+            <div
+              className={`glass rounded-xl flex items-center justify-center space-x-4 ${
+                isLandscape ? "p-2" : "p-3"
+              }`}
+            >
               <button
                 onClick={() => setZoom((prev) => Math.max(prev / 1.2, 0.1))}
                 className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200 touch-manipulation active:scale-95"
@@ -591,9 +648,11 @@ const ImageModal: React.FC<ImageModalProps> = ({
                 <ZoomOut className={isLandscape ? "w-4 h-4" : "w-5 h-5"} />
               </button>
 
-              <div className={`px-2 py-1 font-mono text-white/70 min-w-[50px] text-center ${
-                isLandscape ? "text-xs" : "text-sm"
-              }`}>
+              <div
+                className={`px-2 py-1 font-mono text-white/70 min-w-[50px] text-center ${
+                  isLandscape ? "text-xs" : "text-sm"
+                }`}
+              >
                 {Math.round(zoom * 100)}%
               </div>
 
@@ -619,20 +678,25 @@ const ImageModal: React.FC<ImageModalProps> = ({
       <div className="flex justify-center items-center w-full h-full relative overflow-hidden">
         {(!imageLoaded || loading) && (
           <div className="absolute inset-0 flex items-center justify-center z-10">
-            <div className={`glass rounded-3xl animate-pulse ${
-              isMobile && isLandscape ? "p-4" : "p-6 md:p-8"
-            }`}>
-              <Loader className={`animate-spin text-blue-400 ${
-                isMobile && isLandscape ? "w-5 h-5" : "w-6 h-6 md:w-8 md:h-8"
-              }`} />
+            <div
+              className={`glass rounded-3xl animate-pulse ${
+                isMobile && isLandscape ? "p-4" : "p-6 md:p-8"
+              }`}
+            >
+              <Loader
+                className={`animate-spin text-blue-400 ${
+                  isMobile && isLandscape ? "w-5 h-5" : "w-6 h-6 md:w-8 md:h-8"
+                }`}
+              />
             </div>
           </div>
         )}
 
-        <img
+        <Image
+          fill
           ref={imgRef}
-          src={photo.full}
-          alt={photo.title}
+          src={photo.url}
+          alt={photo.name}
           loading="lazy"
           className={`w-full h-full object-contain transition-all duration-500 ${
             imageLoaded ? "opacity-100" : "opacity-0"
@@ -661,8 +725,8 @@ const ImageModal: React.FC<ImageModalProps> = ({
           <div className="glass rounded-3xl p-6 backdrop-blur-xl">
             <div className="flex items-center justify-between">
               <div className="space-y-2">
-                <h2 className="text-2xl font-bold text-white">{photo.title}</h2>
-                <p className="text-white/70">{photo.description}</p>
+                <h2 className="text-2xl font-bold text-white">{photo.name}</h2>
+                <p className="text-white/70">{photo.name}</p>
                 {typeof currentIndex === "number" &&
                   typeof total === "number" && (
                     <div className="flex items-center space-x-4 text-sm text-white/50">

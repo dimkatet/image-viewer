@@ -7,7 +7,14 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const BUCKET_NAME = process.env.NEXT_PUBLIC_BUCKET_NAME!;
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-export default function ImagesLayout({ children, route }: { children: ReactNode, route: 'sdr' | 'hdr' }) {
+type Props = {
+  children: ReactNode;
+  route: "sdr" | "hdr";
+  photoss: unknown[];
+};
+
+export default function ImagesLayout({ children, route, photoss }: Props) {
+  console.log(photoss);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,6 +30,8 @@ export default function ImagesLayout({ children, route }: { children: ReactNode,
       setLoading(false);
     }
     fetchPhotos();
+        fetch("/api/files")
+        .then((res) => res.json())
   }, []);
 
   return (

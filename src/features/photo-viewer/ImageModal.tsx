@@ -678,9 +678,11 @@ const ImageModal: React.FC<ImageModalProps> = ({
 
         <div className="relative w-full h-full">
           <Image
+            fill
+            unoptimized
+            quality={100}
             src={photo.url}
             alt={photo.name}
-            fill
             sizes="100vw"
             className={`object-contain transition-all duration-500 ${
               imageLoaded ? "opacity-100" : "opacity-0"
@@ -690,7 +692,6 @@ const ImageModal: React.FC<ImageModalProps> = ({
               filter: "drop-shadow(0 0 40px rgba(59, 130, 246, 0.2))",
             }}
             priority={true}
-            quality={90}
             onLoad={() => {
               setImageLoaded(true);
               onImgLoad?.();

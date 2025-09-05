@@ -1,7 +1,7 @@
 import { Photo } from "@/utils/api";
 import Image from "next/image";
 import { Download, Eye, Heart, Share2 } from "lucide-react";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 interface FileGalleryProps {
   photos: Photo[];
@@ -16,8 +16,13 @@ const FileGallery: React.FC<FileGalleryProps> = ({
 }) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [likedPhotos, setLikedPhotos] = useState<Set<string>>(new Set());
-  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
-  const observerRef = useRef<IntersectionObserver>(null);
+  const [mounted, setMounted] = useState(false);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  // Важно: инициализируем только после монтирования
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const toggleLike = (photoId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -32,24 +37,19 @@ const FileGallery: React.FC<FileGalleryProps> = ({
     });
   };
 
-  // Lazy loading с Intersection Observer
+  // Intersection Observer только на клиенте
   const lastImageElementRef = useCallback(
-    (node: HTMLImageElement) => {
+    (node: HTMLElement | null) => {
+      if (!mounted) return;
+
       if (observerRef.current) observerRef.current.disconnect();
+
       observerRef.current = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
-              const img = entry.target as HTMLImageElement;
-              const photoId = img.dataset.photoId;
-              if (photoId && !loadedImages.has(photoId)) {
-                // Загружаем thumbnail вместо полного изображения
-                const thumbnail = img.dataset.thumbnail;
-                if (thumbnail) {
-                  img.src = thumbnail;
-                  setLoadedImages((prev) => new Set(prev).add(photoId));
-                }
-              }
+              // Логика ленивой загрузки уже обрабатывается Next.js Image компонентом
+              // Здесь можно добавить дополнительную логику если нужно
             }
           });
         },
@@ -60,8 +60,17 @@ const FileGallery: React.FC<FileGalleryProps> = ({
       );
       if (node) observerRef.current.observe(node);
     },
-    [loadedImages]
+    [mounted]
   );
+
+  // Очистка observer при размонтировании
+  useEffect(() => {
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, []);
 
   if (photos.length === 0) {
     return (
@@ -88,23 +97,27 @@ const FileGallery: React.FC<FileGalleryProps> = ({
             className="glass rounded-2xl p-4 glass-hover cursor-pointer group animate-slide-in"
             style={{ animationDelay: `${idx * 0.1}s` }}
             onClick={() => onOpen(photo, idx)}
-            onMouseEnter={() => setHoveredId(photo.id)}
-            onMouseLeave={() => setHoveredId(null)}
+            onMouseEnter={() => mounted && setHoveredId(photo.id)}
+            onMouseLeave={() => mounted && setHoveredId(null)}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                <div className="relative">
+                <div className="relative w-16 h-16 rounded-xl overflow-hidden ring-2 ring-white/10 group-hover:ring-blue-400/50 transition-all duration-300">
                   <Image
-                    fill
                     src={photo.thumbnailUrl}
                     alt={photo.name}
-                    className="w-16 h-16 rounded-xl object-cover ring-2 ring-white/10 group-hover:ring-blue-400/50 transition-all duration-300"
+                    fill
+                    sizes="64px"
+                    className="object-cover"
+                    loading="lazy"
                   />
                   <div
                     className={`absolute inset-0 rounded-xl bg-blue-500/20 transition-opacity duration-300 ${
-                      hoveredId === photo.id ? "opacity-100" : "opacity-0"
+                      mounted && hoveredId === photo.id
+                        ? "opacity-100"
+                        : "opacity-0"
                     }`}
-                  ></div>
+                  />
                 </div>
                 <div className="space-y-1">
                   <h3 className="font-semibold text-white group-hover:text-blue-300 transition-colors">
@@ -122,31 +135,33 @@ const FileGallery: React.FC<FileGalleryProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <button
-                  onClick={(e) => toggleLike(photo.id, e)}
-                  className={`p-2 rounded-xl transition-all duration-200 ${
-                    likedPhotos.has(photo.id)
-                      ? "text-red-400 bg-red-400/20"
-                      : "text-white/40 hover:text-red-400 hover:bg-red-400/10"
-                  }`}
-                >
-                  <Heart
-                    className="w-4 h-4"
-                    fill={likedPhotos.has(photo.id) ? "currentColor" : "none"}
-                  />
-                </button>
-                <button className="p-2 rounded-xl text-white/40 hover:text-blue-400 hover:bg-blue-400/10 transition-all duration-200">
-                  <Share2 className="w-4 h-4" />
-                </button>
-                <button className="p-2 rounded-xl text-white/40 hover:text-green-400 hover:bg-green-400/10 transition-all duration-200">
-                  <Download className="w-4 h-4" />
-                </button>
-                <button className="btn-primary px-4 py-2 text-sm">
-                  <Eye className="w-4 h-4 mr-2" />
-                  Открыть
-                </button>
-              </div>
+              {mounted && (
+                <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <button
+                    onClick={(e) => toggleLike(photo.id, e)}
+                    className={`p-2 rounded-xl transition-all duration-200 ${
+                      likedPhotos.has(photo.id)
+                        ? "text-red-400 bg-red-400/20"
+                        : "text-white/40 hover:text-red-400 hover:bg-red-400/10"
+                    }`}
+                  >
+                    <Heart
+                      className="w-4 h-4"
+                      fill={likedPhotos.has(photo.id) ? "currentColor" : "none"}
+                    />
+                  </button>
+                  <button className="p-2 rounded-xl text-white/40 hover:text-blue-400 hover:bg-blue-400/10 transition-all duration-200">
+                    <Share2 className="w-4 h-4" />
+                  </button>
+                  <button className="p-2 rounded-xl text-white/40 hover:text-green-400 hover:bg-green-400/10 transition-all duration-200">
+                    <Download className="w-4 h-4" />
+                  </button>
+                  <button className="btn-primary px-4 py-2 text-sm">
+                    <Eye className="w-4 h-4 mr-2" />
+                    Открыть
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -163,49 +178,54 @@ const FileGallery: React.FC<FileGalleryProps> = ({
           className="glass rounded-2xl overflow-hidden glass-hover cursor-pointer group animate-scale-in"
           style={{ animationDelay: `${idx * 0.1}s` }}
           onClick={() => onOpen(photo, idx)}
-          onMouseEnter={() => setHoveredId(photo.id)}
-          onMouseLeave={() => setHoveredId(null)}
+          onMouseEnter={() => mounted && setHoveredId(photo.id)}
+          onMouseLeave={() => mounted && setHoveredId(null)}
+          ref={idx === photos.length - 1 ? lastImageElementRef : null}
         >
           {/* Image Container */}
           <div className="relative aspect-[4/3] overflow-hidden">
             <Image
-              fill
               src={photo.thumbnailUrl}
               alt={photo.name}
-              className="w-full h-full object-cover"
+              fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+              className="object-cover"
+              priority={idx < 4} // Приоритет для первых 4 изображений
             />
 
             {/* Gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
             {/* Action buttons overlay */}
-            <div
-              className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${
-                hoveredId === photo.id ? "opacity-100" : "opacity-0"
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={(e) => toggleLike(photo.id, e)}
-                  className={`p-3 rounded-full backdrop-blur-md transition-all duration-200 ${
-                    likedPhotos.has(photo.id)
-                      ? "bg-red-500/30 text-red-400 scale-110"
-                      : "bg-white/10 text-white hover:bg-red-500/30 hover:text-red-400"
-                  }`}
-                >
-                  <Heart
-                    className="w-5 h-5"
-                    fill={likedPhotos.has(photo.id) ? "currentColor" : "none"}
-                  />
-                </button>
-                <button className="p-3 rounded-full bg-blue-500/30 text-blue-300 backdrop-blur-md hover:bg-blue-500/50 transition-all duration-200 scale-110">
-                  <Eye className="w-5 h-5" />
-                </button>
-                <button className="p-3 rounded-full bg-white/10 text-white hover:bg-green-500/30 hover:text-green-400 backdrop-blur-md transition-all duration-200">
-                  <Download className="w-5 h-5" />
-                </button>
+            {mounted && (
+              <div
+                className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${
+                  hoveredId === photo.id ? "opacity-100" : "opacity-0"
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={(e) => toggleLike(photo.id, e)}
+                    className={`p-3 rounded-full backdrop-blur-md transition-all duration-200 ${
+                      likedPhotos.has(photo.id)
+                        ? "bg-red-500/30 text-red-400 scale-110"
+                        : "bg-white/10 text-white hover:bg-red-500/30 hover:text-red-400"
+                    }`}
+                  >
+                    <Heart
+                      className="w-5 h-5"
+                      fill={likedPhotos.has(photo.id) ? "currentColor" : "none"}
+                    />
+                  </button>
+                  <button className="p-3 rounded-full bg-blue-500/30 text-blue-300 backdrop-blur-md hover:bg-blue-500/50 transition-all duration-200 scale-110">
+                    <Eye className="w-5 h-5" />
+                  </button>
+                  <button className="p-3 rounded-full bg-white/10 text-white hover:bg-green-500/30 hover:text-green-400 backdrop-blur-md transition-all duration-200">
+                    <Download className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* HDR Badge */}
             <div className="absolute top-3 left-3">
@@ -215,7 +235,7 @@ const FileGallery: React.FC<FileGalleryProps> = ({
             </div>
 
             {/* Like indicator */}
-            {likedPhotos.has(photo.id) && (
+            {mounted && likedPhotos.has(photo.id) && (
               <div className="absolute top-3 right-3">
                 <Heart className="w-5 h-5 text-red-400" fill="currentColor" />
               </div>
@@ -227,15 +247,12 @@ const FileGallery: React.FC<FileGalleryProps> = ({
             <h3 className="font-semibold text-white mb-2 truncate group-hover:text-blue-300 transition-colors">
               {photo.name}
             </h3>
-            {/* <p className="text-sm text-white/60 mb-3 line-clamp-2">
-              {photo}
-            </p> */}
             <div className="flex items-center justify-between">
               <span className="text-xs text-white/40">
                 {photo.size ? (photo.size / 1024 / 1024).toFixed(2) : "--"} МБ
               </span>
               <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
                 <span className="text-xs text-white/60">Готов</span>
               </div>
             </div>

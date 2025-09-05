@@ -1,12 +1,16 @@
-import ImagesLayout from "@/components/ImagesLayout";
+import { fetchListOfFiles, Photo } from "@/utils/api";
 import PhotoGallery from "@/widgets/photo-gallary/PhotoGallery";
-import type { ReactElement } from "react";
-import type { NextPageWithLayout } from "../_app";
+import { GetServerSideProps } from "next";
 
-const SDRIndex: NextPageWithLayout = () => <PhotoGallery title="sdr" />;
-
-SDRIndex.getLayout = function getLayout(page: ReactElement) {
-  return <ImagesLayout route="sdr">{page}</ImagesLayout>;
+type Props = {
+  photos: Photo[];
+  success: boolean;
 };
 
+const SDRIndex = (props: Props) => <PhotoGallery title="sdr" {...props} />;
+
 export default SDRIndex;
+
+export const getServerSideProps: GetServerSideProps<Props> = async () => ({
+  props: await fetchListOfFiles("webp"),
+});

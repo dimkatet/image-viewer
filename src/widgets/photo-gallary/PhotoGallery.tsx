@@ -11,40 +11,45 @@ interface PhotoGalleryProps {
 }
 
 export default function PhotoGallery({ title, photos }: PhotoGalleryProps) {
-  // const { photos, loading } = useContext(ImagesContext);
+  console.log('sdfsd');
   const router = useRouter();
   const [isVisible, setIsVisible] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [preloadedImages, setPreloadedImages] = useState<Set<string>>(
     new Set()
   );
   const [modalLoading, setModalLoading] = useState(false);
-
+  
   // Получаем ID из query параметров
   const photoId = router.query.photo as string;
   const isModalOpen = !!photoId;
-
+  
+  // Инициализация после монтирования
   useEffect(() => {
+    setMounted(true);
     setIsVisible(true);
   }, []);
-
+  
   // Находим текущее фото и его индекс
   const currentIndex = photos.findIndex(
     (p) => String(p.id) === String(photoId)
   );
   const currentPhoto = currentIndex >= 0 ? photos[currentIndex] : null;
-
-  // Предзагрузка соседних изображений
+  
+  // Предзагрузка соседних изображений - только на клиенте
   const preloadAdjacentImages = (index: number) => {
+    if (typeof window === "undefined") return;
+    
     const imagesToPreload: string[] = [];
-
+    
     // Предзагружаем предыдущее и следующее изображение
-    if (index > 0) imagesToPreload.push(photos[index - 1].full);
-    if (index < photos.length - 1) imagesToPreload.push(photos[index + 1].full);
-
+    if (index > 0) imagesToPreload.push(photos[index - 1].url);
+    if (index < photos.length - 1) imagesToPreload.push(photos[index + 1].url);
+    
     // Предзагружаем еще по одному в каждую сторону для плавной навигации
-    if (index > 1) imagesToPreload.push(photos[index - 2].full);
-    if (index < photos.length - 2) imagesToPreload.push(photos[index + 2].full);
-
+    if (index > 1) imagesToPreload.push(photos[index - 2].url);
+    if (index < photos.length - 2) imagesToPreload.push(photos[index + 2].url);
+    
     imagesToPreload.forEach((src) => {
       if (!preloadedImages.has(src)) {
         const img = new Image();
@@ -55,13 +60,13 @@ export default function PhotoGallery({ title, photos }: PhotoGalleryProps) {
       }
     });
   };
-
-  // Предзагрузка при открытии модала или смене фото
+  
+  // Предзагрузка при открытии модала или смене фото - только после монтирования
   useEffect(() => {
-    if (currentIndex >= 0) {
+    if (mounted && currentIndex >= 0) {
       preloadAdjacentImages(currentIndex);
     }
-  }, [currentIndex, photos]);
+  }, [currentIndex, photos, mounted]);
 
   // Функции навигации
   const openViewer = (photo: Photo) => {
@@ -117,39 +122,27 @@ export default function PhotoGallery({ title, photos }: PhotoGalleryProps) {
     }
   };
 
-  // Обработка клавиш для навигации когда модал закрыт
-  useEffect(() => {
-    if (!isModalOpen) {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === "ArrowRight" && photos.length > 0) {
-          openViewer(photos[0]);
-        }
-      };
+  // return <>страница 10</>
 
-      window.addEventListener("keydown", handleKeyDown);
-      return () => window.removeEventListener("keydown", handleKeyDown);
-    }
-  }, [isModalOpen, photos]);
+  // Обработка клавиш для навигации - только после монтирования и когда модал закрыт
+  useEffect(() => {
+    if (!mounted || isModalOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" && photos.length > 0) {
+        openViewer(photos[0]);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mounted, isModalOpen, photos]);
 
   // Обработка загрузки изображения в модале
   const handleModalImageLoad = () => {
     setModalLoading(false);
   };
 
-  // if (loading) {
-  //   return (
-  //     <div className="min-h-screen flex items-center justify-center">
-  //       <div className="glass rounded-3xl p-8 animate-pulse">
-  //         <div className="flex items-center space-x-4">
-  //           <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 animate-spin"></div>
-  //           <span className="text-xl font-light text-white/80">
-  //             Загружается магия...
-  //           </span>
-  //         </div>
-  //       </div>
-  //     </div>
-  //   );
-  // }
 
   return (
     <div className="min-h-screen relative overflow-hidden">

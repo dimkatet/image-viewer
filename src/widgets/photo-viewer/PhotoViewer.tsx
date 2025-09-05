@@ -1,17 +1,15 @@
-import { ImagesContext } from "@/components/ImagesLayout";
 import ImageModal from "@/features/photo-viewer/ImageModal";
-import ViewModalSkeleton from "@/features/photo-viewer/ViewModalSkeleton";
+import { Photo } from "@/utils/api";
 import { useRouter } from "next/router";
-import { useContext } from "react";
 
 interface Props {
-  title: 'sdr' | 'hdr';
+  title: "sdr" | "hdr";
+  photos: Photo[];
 }
 
-export default function PhotoViewer({ title }: Props) {
+export default function PhotoViewer({ title, photos }: Props) {
   const router = useRouter();
   const { id } = router.query;
-  const { photos, loading } = useContext(ImagesContext);
 
   // Вычисляем индекс фото по id
   const currentIndex = photos.findIndex((p) => String(p.id) === String(id));
@@ -29,9 +27,9 @@ export default function PhotoViewer({ title }: Props) {
     }
   };
 
-  if (loading) {
-    return <ViewModalSkeleton />;
-  }
+  // if (loading) {
+  //   return <ViewModalSkeleton />;
+  // }
 
   if (!photo && id) {
     return (
@@ -57,4 +55,3 @@ export default function PhotoViewer({ title }: Props) {
     </>
   );
 }
-

@@ -55,18 +55,18 @@ const ImageModal: React.FC<ImageModalProps> = ({
   const [mobileInfoExpanded, setMobileInfoExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isLandscape, setIsLandscape] = useState(false);
-  // Fullscreen state and ref
   const [isFullscreen, setIsFullscreen] = useState(false);
+
   const modalRef = useRef<HTMLDivElement | null>(null);
-  // Touch/swipe handling
   const [touchStart, setTouchStart] = useState({ x: 0, y: 0 });
   const [touchEnd, setTouchEnd] = useState({ x: 0, y: 0 });
   const [isSwiping, setIsSwiping] = useState(false);
-  const imgRef = useRef<HTMLImageElement | null>(null);
   const hideUITimeout = useRef<NodeJS.Timeout | null>(null);
 
-  // Fullscreen API handlers
+  // Fullscreen API handlers - только на клиенте
   const handleToggleFullscreen = useCallback(() => {
+    if (typeof window === "undefined") return;
+
     if (!isFullscreen) {
       if (modalRef.current) {
         const el = modalRef.current as HTMLElement & {
@@ -93,12 +93,15 @@ const ImageModal: React.FC<ImageModalProps> = ({
     }
   }, [isFullscreen]);
 
+  // Fullscreen events - только на клиенте
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
+
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       document.removeEventListener(
@@ -108,10 +111,9 @@ const ImageModal: React.FC<ImageModalProps> = ({
     };
   }, []);
 
-  // Более точное определение мобильного устройства и ориентации
+  // Device detection - только на клиенте
   useEffect(() => {
     const checkDevice = () => {
-      // Проверяем как размер экрана, так и touch-возможности
       const isMobileDevice =
         "ontouchstart" in window ||
         navigator.maxTouchPoints > 0 ||
@@ -119,15 +121,15 @@ const ImageModal: React.FC<ImageModalProps> = ({
       const isLandscapeOrientation = window.innerWidth > window.innerHeight;
       setIsMobile(isMobileDevice);
       setIsLandscape(isLandscapeOrientation);
-      // На мобильных устройствах UI скрыт по умолчанию
+
       if (isMobileDevice) {
         setUiVisible(false);
       }
     };
+
     checkDevice();
     window.addEventListener("resize", checkDevice);
     window.addEventListener("orientationchange", () => {
-      // Небольшая задержка для корректного получения новых размеров после поворота
       setTimeout(checkDevice, 100);
     });
 
@@ -137,16 +139,16 @@ const ImageModal: React.FC<ImageModalProps> = ({
     };
   }, []);
 
-  // Mouse movement handler for UI visibility (только для десктопа)
-  const handleMouseMove = () => {
-    if (!isMobile) {
-      setUiVisible(true);
-      if (hideUITimeout.current) clearTimeout(hideUITimeout.current);
-      hideUITimeout.current = setTimeout(() => setUiVisible(false), 3000);
-    }
-  };
+  // Mouse movement handler - только на клиенте
+  const handleMouseMove = useCallback(() => {
+    if (isMobile) return;
 
-  // Swipe handlers
+    setUiVisible(true);
+    if (hideUITimeout.current) clearTimeout(hideUITimeout.current);
+    hideUITimeout.current = setTimeout(() => setUiVisible(false), 3000);
+  }, [isMobile]);
+
+  // Touch handlers
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0];
     setTouchStart({ x: touch.clientX, y: touch.clientY });
@@ -164,10 +166,8 @@ const ImageModal: React.FC<ImageModalProps> = ({
       const deltaX = Math.abs(touch.clientX - touchStart.x);
       const deltaY = Math.abs(touch.clientY - touchStart.y);
 
-      // Определяем, что это свайп (горизонтальное движение больше вертикального)
       if (deltaX > deltaY && deltaX > 10) {
         setIsSwiping(true);
-        // e.preventDefault(); // Предотвращаем скролл
       }
     },
     [touchStart]
@@ -181,21 +181,18 @@ const ImageModal: React.FC<ImageModalProps> = ({
     const absDeltaX = Math.abs(deltaX);
     const absDeltaY = Math.abs(deltaY);
 
-    // Если это был свайп (горизонтальное движение преобладает)
     if (isSwiping && absDeltaX > absDeltaY && absDeltaX > 50) {
       if (deltaX > 0 && onPrev && canPrev) {
-        onPrev(); // Свайп вправо - предыдущее изображение
+        onPrev();
       } else if (deltaX < 0 && onNext && canNext) {
-        onNext(); // Свайп влево - следующее изображение
+        onNext();
       }
     } else if (!isSwiping && absDeltaX < 10 && absDeltaY < 10) {
-      // Простое нажатие (тап) - показать/скрыть UI
       if (isMobile && !uiVisible) setUiVisible(true);
       if (hideUITimeout.current) clearTimeout(hideUITimeout.current);
       hideUITimeout.current = setTimeout(() => setUiVisible(false), 4000);
     }
 
-    // Сброс состояния
     setTouchStart({ x: 0, y: 0 });
     setTouchEnd({ x: 0, y: 0 });
     setIsSwiping(false);
@@ -217,25 +214,17 @@ const ImageModal: React.FC<ImageModalProps> = ({
     setZoom(1);
     setRotation(0);
     setMobileInfoExpanded(false);
-  }, [photo.full]);
+  }, [photo.url]);
 
-  // Check if image is already cached
+  // Auto-hide UI - только для десктопа
   useEffect(() => {
-    if (imgRef.current && imgRef.current.complete) {
-      setImageLoaded(true);
-      onImgLoad?.();
-    }
-  }, [photo.full, onImgLoad]);
+    if (isMobile) return;
 
-  // Auto-hide UI только для десктопа
-  useEffect(() => {
-    if (!isMobile) {
-      const timer = setTimeout(() => setUiVisible(false), 3000);
-      return () => clearTimeout(timer);
-    }
+    const timer = setTimeout(() => setUiVisible(false), 3000);
+    return () => clearTimeout(timer);
   }, [isMobile]);
 
-  // Keyboard navigation
+  // Keyboard navigation - только на клиенте
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
@@ -270,6 +259,15 @@ const ImageModal: React.FC<ImageModalProps> = ({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose, onPrev, onNext, canPrev, canNext, showInfo]);
 
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      if (hideUITimeout.current) {
+        clearTimeout(hideUITimeout.current);
+      }
+    };
+  }, []);
+
   return (
     <div
       ref={modalRef}
@@ -293,388 +291,374 @@ const ImageModal: React.FC<ImageModalProps> = ({
             backgroundRepeat: "no-repeat",
             backgroundSize: "cover",
           }}
-        ></div>
+        />
       </div>
 
       {/* Main UI Controls */}
-      <div
-        className={`transition-all duration-500 ${
-          showUI && (uiVisible || !isMobile)
-            ? "opacity-100"
-            : "opacity-0 pointer-events-none"
-        }`}
-      >
-        {/* Close Button - Выровнен с верхним баром */}
-        <button
-          onClick={onClose}
-          className={`absolute z-20 glass hover:bg-red-500/20 hover:scale-110 transition-all duration-300 group touch-manipulation ${
-            isMobile
-              ? isLandscape
-                ? "top-2 right-2 rounded-xl h-10 px-3 ml-2"
-                : "top-4 right-4 rounded-xl h-12 px-4 ml-4"
-              : "top-6 right-6 rounded-2xl h-12 px-4 ml-4"
+      {
+        <div
+          className={`transition-all duration-500 ${
+            showUI && (uiVisible || !isMobile)
+              ? "opacity-100"
+              : "opacity-0 pointer-events-none"
           }`}
         >
-          <X
-            className={`text-white group-hover:text-red-400 ${
-              isMobile && isLandscape ? "w-4 h-4" : "w-5 h-5 md:w-6 md:h-6"
-            }`}
-          />
-        </button>
-
-        {/* Navigation Buttons - Адаптивное позиционирование */}
-        {onPrev && (
+          {/* Close Button */}
           <button
-            onClick={onPrev}
-            disabled={!canPrev}
-            className={`absolute top-1/2 -translate-y-1/2 z-20 glass rounded-xl transition-all duration-300 group touch-manipulation ${
+            onClick={onClose}
+            className={`absolute z-20 glass hover:bg-red-500/20 hover:scale-110 transition-all duration-300 group touch-manipulation ${
               isMobile
                 ? isLandscape
-                  ? "left-1 p-2"
-                  : "left-2 p-3"
-                : "left-6 md:rounded-2xl p-3 md:p-4"
-            } ${
-              !canPrev
-                ? "opacity-30 cursor-not-allowed"
-                : "hover:bg-blue-500/20 hover:scale-110 active:scale-95"
+                  ? "top-2 right-2 rounded-xl h-10 px-3 ml-2"
+                  : "top-4 right-4 rounded-xl h-12 px-4 ml-4"
+                : "top-6 right-6 rounded-2xl h-12 px-4 ml-4"
             }`}
           >
-            <ChevronLeft
-              className={`text-white group-hover:text-blue-400 ${
-                isMobile && isLandscape ? "w-4 h-4" : "w-5 h-5 md:w-8 md:h-8"
+            <X
+              className={`text-white group-hover:text-red-400 ${
+                isMobile && isLandscape ? "w-4 h-4" : "w-5 h-5 md:w-6 md:h-6"
               }`}
             />
           </button>
-        )}
 
-        {onNext && (
-          <button
-            onClick={onNext}
-            disabled={!canNext}
-            className={`absolute top-1/2 -translate-y-1/2 z-20 glass rounded-xl transition-all duration-300 group touch-manipulation ${
-              isMobile
-                ? isLandscape
-                  ? "right-1 p-2"
-                  : "right-2 p-3"
-                : "right-6 md:rounded-2xl p-3 md:p-4"
-            } ${
-              !canNext
-                ? "opacity-30 cursor-not-allowed"
-                : "hover:bg-blue-500/20 hover:scale-110 active:scale-95"
-            }`}
-          >
-            <ChevronRight
-              className={`text-white group-hover:text-blue-400 ${
-                isMobile && isLandscape ? "w-4 h-4" : "w-5 h-5 md:w-8 md:h-8"
-              }`}
-            />
-          </button>
-        )}
-
-        {/* Mobile Top Bar - С высотой как у кнопки закрытия */}
-        {isMobile && (
-          <div
-            className={`absolute z-20 ${
-              isLandscape ? "top-2 left-2 h-10" : "top-4 left-4 h-12"
-            }`}
-            style={{
-              right: isLandscape ? "56px" : "80px", // Оставляем место для кнопки закрытия с отступом
-            }}
-          >
-            <div
-              className={`glass rounded-xl px-3 py-2 flex items-center justify-between h-full ${
-                isLandscape ? "text-sm" : ""
+          {/* Navigation Buttons */}
+          {onPrev && (
+            <button
+              onClick={onPrev}
+              disabled={!canPrev}
+              className={`absolute top-1/2 -translate-y-1/2 z-20 glass rounded-xl transition-all duration-300 group touch-manipulation ${
+                isMobile
+                  ? isLandscape
+                    ? "left-1 p-2"
+                    : "left-2 p-3"
+                  : "left-6 md:rounded-2xl p-3 md:p-4"
+              } ${
+                !canPrev
+                  ? "opacity-30 cursor-not-allowed"
+                  : "hover:bg-blue-500/20 hover:scale-110 active:scale-95"
               }`}
             >
-              {/* Left side - Compact essential actions */}
-              <div className="flex items-center space-x-2">
+              <ChevronLeft
+                className={`text-white group-hover:text-blue-400 ${
+                  isMobile && isLandscape ? "w-4 h-4" : "w-5 h-5 md:w-8 md:h-8"
+                }`}
+              />
+            </button>
+          )}
+
+          {onNext && (
+            <button
+              onClick={onNext}
+              disabled={!canNext}
+              className={`absolute top-1/2 -translate-y-1/2 z-20 glass rounded-xl transition-all duration-300 group touch-manipulation ${
+                isMobile
+                  ? isLandscape
+                    ? "right-1 p-2"
+                    : "right-2 p-3"
+                  : "right-6 md:rounded-2xl p-3 md:p-4"
+              } ${
+                !canNext
+                  ? "opacity-30 cursor-not-allowed"
+                  : "hover:bg-blue-500/20 hover:scale-110 active:scale-95"
+              }`}
+            >
+              <ChevronRight
+                className={`text-white group-hover:text-blue-400 ${
+                  isMobile && isLandscape ? "w-4 h-4" : "w-5 h-5 md:w-8 md:h-8"
+                }`}
+              />
+            </button>
+          )}
+
+          {/* Mobile Top Bar */}
+          {isMobile && (
+            <div
+              className={`absolute z-20 ${
+                isLandscape ? "top-2 left-2 h-10" : "top-4 left-4 h-12"
+              }`}
+              style={{
+                right: isLandscape ? "56px" : "80px",
+              }}
+            >
+              <div
+                className={`glass rounded-xl px-3 py-2 flex items-center justify-between h-full ${
+                  isLandscape ? "text-sm" : ""
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setIsLiked(!isLiked)}
+                    className={`p-2 rounded-lg transition-all duration-300 touch-manipulation ${
+                      isLiked
+                        ? "text-red-400 bg-red-400/20"
+                        : "text-white/60 hover:text-red-400 hover:bg-red-400/10"
+                    }`}
+                  >
+                    <Heart
+                      className={isLandscape ? "w-3 h-3" : "w-4 h-4"}
+                      fill={isLiked ? "currentColor" : "none"}
+                    />
+                  </button>
+
+                  <button
+                    onClick={() => setMobileInfoExpanded(!mobileInfoExpanded)}
+                    className={`p-2 rounded-lg transition-all duration-300 touch-manipulation ${
+                      mobileInfoExpanded
+                        ? "text-blue-400 bg-blue-400/20"
+                        : "text-white/60 hover:text-blue-400 hover:bg-blue-400/10"
+                    }`}
+                  >
+                    {mobileInfoExpanded ? (
+                      <ChevronUp
+                        className={isLandscape ? "w-3 h-3" : "w-4 h-4"}
+                      />
+                    ) : (
+                      <Info className={isLandscape ? "w-3 h-3" : "w-4 h-4"} />
+                    )}
+                  </button>
+
+                  <button
+                    onClick={handleToggleFullscreen}
+                    className="p-2 rounded-lg transition-all duration-300 touch-manipulation text-white/60 hover:text-yellow-400 hover:bg-yellow-400/10"
+                  >
+                    {isFullscreen ? (
+                      <Minimize2
+                        className={isLandscape ? "w-3 h-3" : "w-4 h-4"}
+                      />
+                    ) : (
+                      <Maximize2
+                        className={isLandscape ? "w-3 h-3" : "w-4 h-4"}
+                      />
+                    )}
+                  </button>
+                </div>
+
+                <div
+                  className={`flex items-center space-x-2 text-white/60 ${
+                    isLandscape ? "text-xs" : "text-xs"
+                  }`}
+                >
+                  <span className="font-mono">{Math.round(zoom * 100)}%</span>
+                  {typeof currentIndex === "number" &&
+                    typeof total === "number" && (
+                      <>
+                        <div className="w-px h-3 bg-white/30" />
+                        <span>
+                          {currentIndex + 1}/{total}
+                        </span>
+                      </>
+                    )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Desktop Top Action Bar */}
+          {!isMobile && (
+            <div className="absolute top-6 left-6 flex items-center space-x-3 z-20">
+              <div className="glass rounded-2xl px-4 py-2 flex items-center space-x-3">
                 <button
                   onClick={() => setIsLiked(!isLiked)}
-                  className={`p-2 rounded-lg transition-all duration-300 touch-manipulation ${
+                  className={`p-2 rounded-lg transition-all duration-300 ${
                     isLiked
                       ? "text-red-400 bg-red-400/20"
                       : "text-white/60 hover:text-red-400 hover:bg-red-400/10"
                   }`}
                 >
                   <Heart
-                    className={isLandscape ? "w-3 h-3" : "w-4 h-4"}
+                    className="w-4 h-4"
                     fill={isLiked ? "currentColor" : "none"}
                   />
                 </button>
-
+                <button className="p-2 rounded-lg text-white/60 hover:text-blue-400 hover:bg-blue-400/10 transition-all duration-300">
+                  <Download className="w-4 h-4" />
+                </button>
+                <button className="p-2 rounded-lg text-white/60 hover:text-green-400 hover:bg-green-400/10 transition-all duration-300">
+                  <Share2 className="w-4 h-4" />
+                </button>
                 <button
-                  onClick={() => setMobileInfoExpanded(!mobileInfoExpanded)}
-                  className={`p-2 rounded-lg transition-all duration-300 touch-manipulation ${
-                    mobileInfoExpanded
+                  onClick={() => setShowInfo(!showInfo)}
+                  className={`p-2 rounded-lg transition-all duration-300 ${
+                    showInfo
                       ? "text-blue-400 bg-blue-400/20"
                       : "text-white/60 hover:text-blue-400 hover:bg-blue-400/10"
                   }`}
                 >
-                  {mobileInfoExpanded ? (
-                    <ChevronUp
-                      className={isLandscape ? "w-3 h-3" : "w-4 h-4"}
-                    />
-                  ) : (
-                    <Info className={isLandscape ? "w-3 h-3" : "w-4 h-4"} />
-                  )}
+                  <Info className="w-4 h-4" />
                 </button>
-
-                {/* Fullscreen button for mobile */}
                 <button
                   onClick={handleToggleFullscreen}
-                  className={`p-2 rounded-lg transition-all duration-300 touch-manipulation text-white/60 hover:text-yellow-400 hover:bg-yellow-400/10`}
-                  title={
-                    isFullscreen
-                      ? "Выйти из полноэкранного режима"
-                      : "Полноэкранный режим"
-                  }
+                  className="p-2 rounded-lg text-white/60 hover:text-yellow-400 hover:bg-yellow-400/10 transition-all duration-300"
                 >
                   {isFullscreen ? (
-                    <Minimize2
-                      className={isLandscape ? "w-3 h-3" : "w-4 h-4"}
-                    />
+                    <Minimize2 className="w-4 h-4" />
                   ) : (
-                    <Maximize2
-                      className={isLandscape ? "w-3 h-3" : "w-4 h-4"}
-                    />
+                    <Maximize2 className="w-4 h-4" />
                   )}
                 </button>
               </div>
 
-              {/* Right side - Status info */}
-              <div
-                className={`flex items-center space-x-2 text-white/60 ${
-                  isLandscape ? "text-xs" : "text-xs"
-                }`}
-              >
-                <span className="font-mono">{Math.round(zoom * 100)}%</span>
-                {typeof currentIndex === "number" &&
-                  typeof total === "number" && (
-                    <>
-                      <div className="w-px h-3 bg-white/30"></div>
-                      <span>
-                        {currentIndex + 1}/{total}
-                      </span>
-                    </>
-                  )}
+              {/* Zoom Controls */}
+              <div className="glass rounded-2xl p-2 flex items-center space-x-1">
+                <button
+                  onClick={() => setZoom((prev) => Math.max(prev / 1.2, 0.1))}
+                  className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <span className="text-white/60 text-sm font-mono w-12 text-center">
+                  {Math.round(zoom * 100)}%
+                </span>
+                <button
+                  onClick={() => setZoom((prev) => Math.min(prev * 1.2, 5))}
+                  className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <div className="w-px h-6 bg-white/20 mx-1" />
+                <button
+                  onClick={() => setRotation((prev) => prev + 90)}
+                  className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200"
+                >
+                  <RotateCw className="w-4 h-4" />
+                </button>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Desktop Top Action Bar - Показываем только на настоящих десктопах */}
-        {!isMobile && (
-          <div className="absolute top-6 left-6 flex items-center space-x-3 z-20">
-            <div className="glass rounded-2xl px-4 py-2 flex items-center space-x-3">
-              <button
-                onClick={() => setIsLiked(!isLiked)}
-                className={`p-2 rounded-lg transition-all duration-300 ${
-                  isLiked
-                    ? "text-red-400 bg-red-400/20"
-                    : "text-white/60 hover:text-red-400 hover:bg-red-400/10"
-                }`}
-              >
-                <Heart
-                  className="w-4 h-4"
-                  fill={isLiked ? "currentColor" : "none"}
-                />
-              </button>
-              <button className="p-2 rounded-lg text-white/60 hover:text-blue-400 hover:bg-blue-400/10 transition-all duration-300">
-                <Download className="w-4 h-4" />
-              </button>
-              <button className="p-2 rounded-lg text-white/60 hover:text-green-400 hover:bg-green-400/10 transition-all duration-300">
-                <Share2 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setShowInfo(!showInfo)}
-                className={`p-2 rounded-lg transition-all duration-300 ${
-                  showInfo
-                    ? "text-blue-400 bg-blue-400/20"
-                    : "text-white/60 hover:text-blue-400 hover:bg-blue-400/10"
-                }`}
-              >
-                <Info className="w-4 h-4" />
-              </button>
-              {/* Fullscreen button */}
-              <button
-                onClick={handleToggleFullscreen}
-                className={`p-2 rounded-lg text-white/60 hover:text-yellow-400 hover:bg-yellow-400/10 transition-all duration-300`}
-                title={
-                  isFullscreen
-                    ? "Выйти из полноэкранного режима"
-                    : "Полноэкранный режим"
-                }
-              >
-                {isFullscreen ? (
-                  <Minimize2 className="w-4 h-4" />
-                ) : (
-                  <Maximize2 className="w-4 h-4" />
-                )}
-              </button>
-            </div>
-
-            {/* Zoom Controls - Desktop only */}
-            <div className="glass rounded-2xl p-2 flex items-center space-x-1">
-              <button
-                onClick={() => setZoom((prev) => Math.max(prev / 1.2, 0.1))}
-                className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200"
-              >
-                <ZoomOut className="w-4 h-4" />
-              </button>
-              <span className="text-white/60 text-sm font-mono w-12 text-center">
-                {Math.round(zoom * 100)}%
-              </span>
-              <button
-                onClick={() => setZoom((prev) => Math.min(prev * 1.2, 5))}
-                className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200"
-              >
-                <ZoomIn className="w-4 h-4" />
-              </button>
-              <div className="w-px h-6 bg-white/20 mx-1"></div>
-              <button
-                onClick={() => setRotation((prev) => prev + 90)}
-                className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200"
-              >
-                <RotateCw className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Mobile Expanded Info Panel */}
-        {isMobile && (
-          <div
-            className={`absolute z-20 transition-all duration-300 ${
-              isLandscape ? "top-12 left-2 right-2" : "top-20 left-4 right-4"
-            } ${
-              mobileInfoExpanded
-                ? "opacity-100 translate-y-0 max-h-screen"
-                : "opacity-0 -translate-y-4 max-h-0 overflow-hidden"
-            }`}
-          >
-            <div className="glass rounded-xl backdrop-blur-xl overflow-hidden">
-              {/* Image Info */}
-              <div
-                className={`border-b border-white/10 ${
-                  isLandscape ? "p-3" : "p-4"
-                }`}
-              >
-                <h3
-                  className={`font-semibold text-white mb-2 truncate ${
-                    isLandscape ? "text-base" : "text-lg"
-                  }`}
-                >
-                  {photo.name}
-                </h3>
-                <p
-                  className={`text-white/70 line-clamp-2 mb-3 ${
-                    isLandscape ? "text-xs" : "text-sm"
-                  }`}
-                >
-                  {/* TODO */}
-                  {photo.name}
-                </p>
-
-                {/* Stats grid */}
+          {/* Mobile Expanded Info Panel */}
+          {isMobile && (
+            <div
+              className={`absolute z-20 transition-all duration-300 ${
+                isLandscape ? "top-12 left-2 right-2" : "top-20 left-4 right-4"
+              } ${
+                mobileInfoExpanded
+                  ? "opacity-100 translate-y-0 max-h-screen"
+                  : "opacity-0 -translate-y-4 max-h-0 overflow-hidden"
+              }`}
+            >
+              <div className="glass rounded-xl backdrop-blur-xl overflow-hidden">
                 <div
-                  className={`grid grid-cols-2 gap-3 ${
-                    isLandscape ? "text-xs" : "text-sm"
+                  className={`border-b border-white/10 ${
+                    isLandscape ? "p-3" : "p-4"
                   }`}
                 >
-                  <div className="flex justify-between">
-                    <span className="text-white/60">Размер:</span>
-                    <span className="text-white">
-                      {photo.size
-                        ? (photo.size / 1024 / 1024).toFixed(2)
-                        : "--"}{" "}
-                      МБ
-                    </span>
+                  <h3
+                    className={`font-semibold text-white mb-2 truncate ${
+                      isLandscape ? "text-base" : "text-lg"
+                    }`}
+                  >
+                    {photo.name}
+                  </h3>
+                  <p
+                    className={`text-white/70 line-clamp-2 mb-3 ${
+                      isLandscape ? "text-xs" : "text-sm"
+                    }`}
+                  >
+                    {photo.name}
+                  </p>
+
+                  <div
+                    className={`grid grid-cols-2 gap-3 ${
+                      isLandscape ? "text-xs" : "text-sm"
+                    }`}
+                  >
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Размер:</span>
+                      <span className="text-white">
+                        {photo.size
+                          ? (photo.size / 1024 / 1024).toFixed(2)
+                          : "--"}{" "}
+                        МБ
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Формат:</span>
+                      <span className="text-white">HDR</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Качество:</span>
+                      <span className="text-green-400 font-medium">
+                        Высокое
+                      </span>
+                    </div>
+                    {typeof currentIndex === "number" &&
+                      typeof total === "number" && (
+                        <div className="flex justify-between">
+                          <span className="text-white/60">Позиция:</span>
+                          <span className="text-white">
+                            {currentIndex + 1} / {total}
+                          </span>
+                        </div>
+                      )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-white/60">Формат:</span>
-                    <span className="text-white">HDR</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-white/60">Качество:</span>
-                    <span className="text-green-400 font-medium">Высокое</span>
-                  </div>
-                  {typeof currentIndex === "number" &&
-                    typeof total === "number" && (
-                      <div className="flex justify-between">
-                        <span className="text-white/60">Позиция:</span>
-                        <span className="text-white">
-                          {currentIndex + 1} / {total}
-                        </span>
-                      </div>
-                    )}
+                </div>
+
+                <div
+                  className={`flex items-center justify-center space-x-4 ${
+                    isLandscape ? "p-2" : "p-3"
+                  }`}
+                >
+                  <button className="p-2 rounded-lg text-white/60 hover:text-blue-400 hover:bg-blue-400/10 transition-all duration-300 touch-manipulation">
+                    <Download className={isLandscape ? "w-4 h-4" : "w-5 h-5"} />
+                  </button>
+                  <button className="p-2 rounded-lg text-white/60 hover:text-green-400 hover:bg-green-400/10 transition-all duration-300 touch-manipulation">
+                    <Share2 className={isLandscape ? "w-4 h-4" : "w-5 h-5"} />
+                  </button>
                 </div>
               </div>
+            </div>
+          )}
 
-              {/* Actions */}
+          {/* Mobile Bottom Controls */}
+          {isMobile && (
+            <div
+              className={`absolute z-20 ${
+                isLandscape
+                  ? "bottom-2 left-1/2 -translate-x-1/2"
+                  : "bottom-6 left-4 right-4"
+              }`}
+            >
               <div
-                className={`flex items-center justify-center space-x-4 ${
+                className={`glass rounded-xl flex items-center justify-center space-x-4 ${
                   isLandscape ? "p-2" : "p-3"
                 }`}
               >
-                <button className="p-2 rounded-lg text-white/60 hover:text-blue-400 hover:bg-blue-400/10 transition-all duration-300 touch-manipulation">
-                  <Download className={isLandscape ? "w-4 h-4" : "w-5 h-5"} />
+                <button
+                  onClick={() => setZoom((prev) => Math.max(prev / 1.2, 0.1))}
+                  className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200 touch-manipulation active:scale-95"
+                >
+                  <ZoomOut className={isLandscape ? "w-4 h-4" : "w-5 h-5"} />
                 </button>
-                <button className="p-2 rounded-lg text-white/60 hover:text-green-400 hover:bg-green-400/10 transition-all duration-300 touch-manipulation">
-                  <Share2 className={isLandscape ? "w-4 h-4" : "w-5 h-5"} />
+
+                <div
+                  className={`px-2 py-1 font-mono text-white/70 min-w-[50px] text-center ${
+                    isLandscape ? "text-xs" : "text-sm"
+                  }`}
+                >
+                  {Math.round(zoom * 100)}%
+                </div>
+
+                <button
+                  onClick={() => setZoom((prev) => Math.min(prev * 1.2, 5))}
+                  className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200 touch-manipulation active:scale-95"
+                >
+                  <ZoomIn className={isLandscape ? "w-4 h-4" : "w-5 h-5"} />
+                </button>
+                <div className="w-px h-6 bg-white/20" />
+                <button
+                  onClick={() => setRotation((prev) => prev + 90)}
+                  className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200 touch-manipulation active:scale-95"
+                >
+                  <RotateCw className={isLandscape ? "w-4 h-4" : "w-5 h-5"} />
                 </button>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+      }
 
-        {/* Mobile Bottom Controls */}
-        {isMobile && (
-          <div
-            className={`absolute z-20 ${
-              isLandscape
-                ? "bottom-2 left-1/2 -translate-x-1/2"
-                : "bottom-6 left-4 right-4"
-            }`}
-          >
-            <div
-              className={`glass rounded-xl flex items-center justify-center space-x-4 ${
-                isLandscape ? "p-2" : "p-3"
-              }`}
-            >
-              <button
-                onClick={() => setZoom((prev) => Math.max(prev / 1.2, 0.1))}
-                className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200 touch-manipulation active:scale-95"
-              >
-                <ZoomOut className={isLandscape ? "w-4 h-4" : "w-5 h-5"} />
-              </button>
-
-              <div
-                className={`px-2 py-1 font-mono text-white/70 min-w-[50px] text-center ${
-                  isLandscape ? "text-xs" : "text-sm"
-                }`}
-              >
-                {Math.round(zoom * 100)}%
-              </div>
-
-              <button
-                onClick={() => setZoom((prev) => Math.min(prev * 1.2, 5))}
-                className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200 touch-manipulation active:scale-95"
-              >
-                <ZoomIn className={isLandscape ? "w-4 h-4" : "w-5 h-5"} />
-              </button>
-              <div className="w-px h-6 bg-white/20"></div>
-              <button
-                onClick={() => setRotation((prev) => prev + 90)}
-                className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200 touch-manipulation active:scale-95"
-              >
-                <RotateCw className={isLandscape ? "w-4 h-4" : "w-5 h-5"} />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Image Container - Полноэкранное изображение */}
+      {/* Image Container */}
       <div className="flex justify-center items-center w-full h-full relative overflow-hidden">
         {(!imageLoaded || loading) && (
           <div className="absolute inset-0 flex items-center justify-center z-10">
@@ -692,28 +676,33 @@ const ImageModal: React.FC<ImageModalProps> = ({
           </div>
         )}
 
-        <Image
-          fill
-          ref={imgRef}
-          src={photo.url}
-          alt={photo.name}
-          loading="lazy"
-          className={`w-full h-full object-contain transition-all duration-500 ${
-            imageLoaded ? "opacity-100" : "opacity-0"
-          }`}
-          style={{
-            transform: `scale(${zoom}) rotate(${rotation}deg)`,
-            filter: "drop-shadow(0 0 40px rgba(59, 130, 246, 0.2))",
-          }}
-          draggable={false}
-          onLoad={() => {
-            setImageLoaded(true);
-            onImgLoad?.();
-          }}
-        />
+        <div className="relative w-full h-full">
+          <Image
+            src={photo.url}
+            alt={photo.name}
+            fill
+            sizes="100vw"
+            className={`object-contain transition-all duration-500 ${
+              imageLoaded ? "opacity-100" : "opacity-0"
+            }`}
+            style={{
+              transform: `scale(${zoom}) rotate(${rotation}deg)`,
+              filter: "drop-shadow(0 0 40px rgba(59, 130, 246, 0.2))",
+            }}
+            priority={true}
+            quality={90}
+            onLoad={() => {
+              setImageLoaded(true);
+              onImgLoad?.();
+            }}
+            onError={() => {
+              console.error("Failed to load image:", photo.url);
+            }}
+          />
+        </div>
       </div>
 
-      {/* Desktop Bottom Info Panel - Только для десктопов */}
+      {/* Desktop Bottom Info Panel */}
       {!isMobile && (
         <div
           className={`absolute bottom-6 left-6 right-6 z-20 transition-all duration-500 ${
@@ -733,9 +722,9 @@ const ImageModal: React.FC<ImageModalProps> = ({
                       <span>
                         {currentIndex + 1} / {total}
                       </span>
-                      <div className="w-1 h-1 rounded-full bg-white/30"></div>
+                      <div className="w-1 h-1 rounded-full bg-white/30" />
                       <span>HDR Quality</span>
-                      <div className="w-1 h-1 rounded-full bg-white/30"></div>
+                      <div className="w-1 h-1 rounded-full bg-white/30" />
                       <span>
                         {photo.size
                           ? (photo.size / 1024 / 1024).toFixed(2)
@@ -746,7 +735,6 @@ const ImageModal: React.FC<ImageModalProps> = ({
                   )}
               </div>
 
-              {/* Progress Indicator */}
               {typeof currentIndex === "number" &&
                 typeof total === "number" &&
                 total > 1 && (
@@ -757,7 +745,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
                         style={{
                           width: `${((currentIndex + 1) / total) * 100}%`,
                         }}
-                      ></div>
+                      />
                     </div>
                     <span className="text-white/60 text-sm font-mono">
                       {currentIndex + 1}/{total}

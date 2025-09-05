@@ -11,7 +11,6 @@ interface PhotoGalleryProps {
 }
 
 export default function PhotoGallery({ title, photos }: PhotoGalleryProps) {
-  console.log('sdfsd');
   const router = useRouter();
   const [isVisible, setIsVisible] = useState(false);
   const [mounted, setMounted] = useState(false);

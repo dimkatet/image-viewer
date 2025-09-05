@@ -679,7 +679,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
         <div className="relative w-full h-full">
           <Image
             fill
-            unoptimized
+            // unoptimized
             quality={100}
             src={photo.url}
             alt={photo.name}

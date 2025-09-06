@@ -677,10 +677,11 @@ const ImageModal: React.FC<ImageModalProps> = ({
         )}
 
         <div className="relative w-full h-full">
-          <img
-            // fill
-            // unoptimized
-            // quality={100}
+          <Image
+            fill
+            priority
+            unoptimized
+            quality={100}
             src={photo.url}
             alt={photo.name}
             sizes="100vw"
@@ -691,7 +692,6 @@ const ImageModal: React.FC<ImageModalProps> = ({
               transform: `scale(${zoom}) rotate(${rotation}deg)`,
               filter: "drop-shadow(0 0 40px rgba(59, 130, 246, 0.2))",
             }}
-            // priority={true}
             onLoad={() => {
               setImageLoaded(true);
               onImgLoad?.();

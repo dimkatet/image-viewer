@@ -1,9 +1,8 @@
-const BASE_URL = "http://vm75064.vpsone.xyz:8080";
-const USERNAME = "image-viewer";
-const PASSWORD = "dim_tet_211";
-const DIR_NAME = "images";
-
-const SHARE_ID = "jTF2uRtE";
+const BASE_URL = process.env.NEXT_PUBLIC_STORAGE_URL;
+const USERNAME = process.env.NEXT_PUBLIC_STORAGE_LOGIN;
+const PASSWORD = process.env.NEXT_PUBLIC_STORAGE_PASSWORD;
+const DIR_NAME = process.env.NEXT_PUBLIC_STORAGE_ROOT_DIR;
+const SHARE_ID = process.env.NEXT_PUBLIC_STORAGE_SHARE_ID;
 
 export type FileInfo = {
   path: string;

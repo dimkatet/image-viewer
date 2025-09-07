@@ -23,7 +23,6 @@ type FilesResponse = {
 export type Photo = FileInfo & {
   id: string;
   url: string;
-  thumbnailUrl: string;
 };
 
 export const fetchListOfFiles = async (
@@ -42,9 +41,7 @@ export const fetchListOfFiles = async (
 
   const filesRes = await fetch(
     `${BASE_URL}/api/resources/${DIR_NAME}/${path}`,
-    {
-      headers: { Cookie: `auth=${token}` },
-    }
+    { headers: { Cookie: `auth=${token}` } }
   );
 
   console.log(filesRes);
@@ -57,7 +54,6 @@ export const fetchListOfFiles = async (
     ...file,
     id: encodeURIComponent(file.name),
     url: `${BASE_URL}/api/public/dl/${SHARE_ID}/${path}/${file.name}`,
-    thumbnailUrl: `${BASE_URL}/api/public/dl/${SHARE_ID}/thumbnails/${path}/${file.name}`,
   }));
   return {
     photos: filesWithThumbnails || [],

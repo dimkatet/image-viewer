@@ -18,37 +18,37 @@ export default function PhotoGallery({ title, photos }: PhotoGalleryProps) {
     new Set()
   );
   const [modalLoading, setModalLoading] = useState(false);
-  
+
   // Получаем ID из query параметров
   const photoId = router.query.photo as string;
   const isModalOpen = !!photoId;
-  
+
   // Инициализация после монтирования
   useEffect(() => {
     setMounted(true);
     setIsVisible(true);
   }, []);
-  
+
   // Находим текущее фото и его индекс
   const currentIndex = photos.findIndex(
     (p) => String(p.id) === String(photoId)
   );
   const currentPhoto = currentIndex >= 0 ? photos[currentIndex] : null;
-  
+
   // Предзагрузка соседних изображений - только на клиенте
   const preloadAdjacentImages = (index: number) => {
     if (typeof window === "undefined") return;
-    
+
     const imagesToPreload: string[] = [];
-    
+
     // Предзагружаем предыдущее и следующее изображение
     if (index > 0) imagesToPreload.push(photos[index - 1].url);
     if (index < photos.length - 1) imagesToPreload.push(photos[index + 1].url);
-    
+
     // Предзагружаем еще по одному в каждую сторону для плавной навигации
     if (index > 1) imagesToPreload.push(photos[index - 2].url);
     if (index < photos.length - 2) imagesToPreload.push(photos[index + 2].url);
-    
+
     imagesToPreload.forEach((src) => {
       if (!preloadedImages.has(src)) {
         const img = new Image();
@@ -59,7 +59,7 @@ export default function PhotoGallery({ title, photos }: PhotoGalleryProps) {
       }
     });
   };
-  
+
   // Предзагрузка при открытии модала или смене фото - только после монтирования
   useEffect(() => {
     if (mounted && currentIndex >= 0) {
@@ -142,7 +142,6 @@ export default function PhotoGallery({ title, photos }: PhotoGalleryProps) {
     setModalLoading(false);
   };
 
-
   return (
     <div className="min-h-screen relative overflow-hidden">
       {/* Фоновые элементы */}
@@ -164,32 +163,38 @@ export default function PhotoGallery({ title, photos }: PhotoGalleryProps) {
           isVisible ? "animate-fade-in" : "opacity-0"
         }`}
       >
-        <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="max-w-6xl mx-auto px-6 py-8">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-10">
+              <button
+                onClick={() => router.push("/")}
+                className="glass rounded-2xl px-4 py-3 glass-hover group transition-all duration-300 hover:scale-105"
+              >
+                <div className="flex items-center space-x-2">
+                  <svg
+                    className="w-5 h-5 text-white/70 group-hover:text-white transition-colors"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                    />
+                  </svg>
+                  <span className="text-white/70 group-hover:text-white font-medium transition-colors">
+                    Главная
+                  </span>
+                </div>
+              </button>
               <div className="relative">
                 <h1 className="text-4xl font-bold gradient-text floating">
                   {title.toUpperCase()} Галерея
                 </h1>
                 <div className="absolute -bottom-2 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-cyan-500 rounded-full opacity-60"></div>
               </div>
-              <div
-                className="glass rounded-2xl px-4 py-2 animate-slide-in"
-                style={{ animationDelay: "0.3s" }}
-              >
-                <span className="text-white/70 font-medium">
-                  {photos.length} изображений
-                </span>
-              </div>
-
-              {/* Индикатор предзагруженных изображений */}
-              {preloadedImages.size > 0 && (
-                <div className="glass rounded-2xl px-3 py-2 animate-slide-in">
-                  <span className="text-green-400/80 text-sm font-medium">
-                    {preloadedImages.size} предзагружено
-                  </span>
-                </div>
-              )}
             </div>
 
             {/* Статистика */}
@@ -200,6 +205,14 @@ export default function PhotoGallery({ title, photos }: PhotoGalleryProps) {
                 </div>
                 <div className="text-xs text-white/60">Всего</div>
               </div>
+              {preloadedImages.size > 0 && (
+                <div className="glass rounded-2xl px-4 py-3 text-center min-w-[80px] glass-hover">
+                  <div className="text-2xl font-bold text-green-400/80">
+                    {preloadedImages.size}
+                  </div>
+                  <div className="text-xs text-white/60">Загружено</div>
+                </div>
+              )}
               <div className="glass rounded-2xl px-4 py-3 text-center min-w-[80px] glass-hover">
                 <div className="text-2xl font-bold text-purple-400">
                   {title.toUpperCase()}

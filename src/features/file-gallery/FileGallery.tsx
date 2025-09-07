@@ -19,7 +19,6 @@ const FileGallery: React.FC<FileGalleryProps> = ({
   const [mounted, setMounted] = useState(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // Важно: инициализируем только после монтирования
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -37,7 +36,6 @@ const FileGallery: React.FC<FileGalleryProps> = ({
     });
   };
 
-  // Intersection Observer только на клиенте
   const lastImageElementRef = useCallback(
     (node: HTMLElement | null) => {
       if (!mounted) return;
@@ -48,8 +46,7 @@ const FileGallery: React.FC<FileGalleryProps> = ({
         (entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
-              // Логика ленивой загрузки уже обрабатывается Next.js Image компонентом
-              // Здесь можно добавить дополнительную логику если нужно
+              // Дополнительная логика для ленивой загрузки если нужно
             }
           });
         },
@@ -63,7 +60,6 @@ const FileGallery: React.FC<FileGalleryProps> = ({
     [mounted]
   );
 
-  // Очистка observer при размонтировании
   useEffect(() => {
     return () => {
       if (observerRef.current) {
@@ -104,12 +100,13 @@ const FileGallery: React.FC<FileGalleryProps> = ({
               <div className="flex items-center space-x-4">
                 <div className="relative w-16 h-16 rounded-xl overflow-hidden ring-2 ring-white/10 group-hover:ring-blue-400/50 transition-all duration-300">
                   <Image
-                    src={photo.thumbnailUrl}
+                    src={photo.url}
                     alt={photo.name}
                     fill
                     sizes="64px"
                     className="object-cover"
                     loading="lazy"
+                    quality={75}
                   />
                   <div
                     className={`absolute inset-0 rounded-xl bg-blue-500/20 transition-opacity duration-300 ${
@@ -185,12 +182,13 @@ const FileGallery: React.FC<FileGalleryProps> = ({
           {/* Image Container */}
           <div className="relative aspect-[4/3] overflow-hidden">
             <Image
-              src={photo.thumbnailUrl}
+              src={photo.url} // Используем оригинальный URL
               alt={photo.name}
               fill
               sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
               className="object-cover"
               priority={idx < 4} // Приоритет для первых 4 изображений
+              quality={80} // Хорошее качество для preview
             />
 
             {/* Gradient overlay */}

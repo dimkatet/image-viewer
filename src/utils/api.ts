@@ -54,7 +54,7 @@ export const fetchListOfFiles = async (
     ...file,
     id: encodeURIComponent(file.name),
     url: `${BASE_URL}/api/public/dl/${SHARE_ID}/${path}/${file.name}`,
-  }));
+  })).sort((a, b) => new Date(b.modified).getTime() - new Date(a.modified).getTime());
   return {
     photos: filesWithThumbnails || [],
     success: true,

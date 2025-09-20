@@ -16,8 +16,9 @@ import {
   ZoomOut,
 } from "lucide-react";
 import Image from "next/image";
-
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useSpring, animated } from "@react-spring/web";
+import { useGesture } from "@use-gesture/react";
 
 interface ImageModalProps {
   photo: Photo;
@@ -49,8 +50,6 @@ const ImageModal: React.FC<ImageModalProps> = ({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
-  const [zoom, setZoom] = useState(1);
-  const [rotation, setRotation] = useState(0);
   const [uiVisible, setUiVisible] = useState(true);
   const [mobileInfoExpanded, setMobileInfoExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -58,12 +57,109 @@ const ImageModal: React.FC<ImageModalProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const modalRef = useRef<HTMLDivElement | null>(null);
-  const [touchStart, setTouchStart] = useState({ x: 0, y: 0 });
-  const [touchEnd, setTouchEnd] = useState({ x: 0, y: 0 });
-  const [isSwiping, setIsSwiping] = useState(false);
+  const imageRef = useRef<HTMLDivElement | null>(null);
   const hideUITimeout = useRef<NodeJS.Timeout | null>(null);
 
-  // Fullscreen API handlers - только на клиенте
+  // Spring для анимации зума и поворота
+  const [{ scale, rotateZ }, api] = useSpring(() => ({
+    scale: 1,
+    rotateZ: 0,
+    config: { tension: 300, friction: 30 },
+  }));
+
+  // Gesture handling
+  const bind = useGesture(
+    {
+      // Drag для свайпов навигации
+      onDrag: ({ direction: [dx], movement: [mx, my], cancel, tap, event }) => {
+        // Если это тап - показываем/скрываем UI на мобильных
+        if (tap && isMobile) {
+          setUiVisible(!uiVisible);
+          if (hideUITimeout.current) clearTimeout(hideUITimeout.current);
+          hideUITimeout.current = setTimeout(() => setUiVisible(false), 4000);
+          return;
+        }
+
+        // Игнорируем слабые движения
+        if (Math.abs(mx) < 50) return;
+
+        // Навигация при горизонтальных свайпах
+        if (Math.abs(mx) > 50) {
+          cancel();
+
+          if (dx > 0 && onPrev && canPrev) {
+            onPrev();
+          } else if (dx < 0 && onNext && canNext) {
+            onNext();
+          }
+        }
+      },
+
+      // Wheel для зума на десктопе
+      onWheel: ({ event, delta: [, dy] }) => {
+        if (isMobile) return;
+
+        event.preventDefault();
+
+        const factor = dy > 0 ? 0.9 : 1.1;
+        api.start((_, ctrl) => ({
+          scale: Math.min(Math.max(ctrl.get().scale * factor, 0.1), 5),
+        }));
+      },
+
+      // Pinch для зума на мобильных
+      onPinch: ({ offset: [d], memo = scale.get() }) => {
+        const newScale = Math.min(Math.max(memo * d, 0.1), 5);
+        api.start({ scale: newScale });
+        return memo;
+      },
+    },
+    {
+      drag: {
+        // Настройки для drag
+        filterTaps: true,
+        threshold: [10, 10],
+        rubberband: true,
+      },
+      pinch: {
+        // Настройки для pinch
+        scaleBounds: { min: 0.1, max: 5 },
+        rubberband: true,
+      },
+      wheel: {
+        // Настройки для wheel
+        eventOptions: { passive: false },
+      },
+    }
+  );
+
+  // Функции для программного управления зумом и поворотом
+  const handleZoomIn = useCallback(() => {
+    api.start((_, ctrl) => ({
+      scale: Math.min(ctrl.get().scale * 1.2, 5),
+    }));
+  }, [api]);
+
+  const handleZoomOut = useCallback(() => {
+    api.start((_, ctrl) => ({
+      scale: Math.max(ctrl.get().scale / 1.2, 0.1),
+    }));
+  }, [api]);
+
+  const handleRotate = useCallback(() => {
+    api.start((_, ctrl) => ({
+      rotateZ: ctrl.get().rotateZ + 90,
+    }));
+  }, [api]);
+
+  // Сброс трансформации при смене фото
+  useEffect(() => {
+    setImageLoaded(false);
+    setMobileInfoExpanded(false);
+    api.start({ scale: 1, rotateZ: 0 });
+  }, [photo.url, api]);
+
+  // Fullscreen API handlers
   const handleToggleFullscreen = useCallback(() => {
     if (typeof window === "undefined") return;
 
@@ -93,7 +189,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
     }
   }, [isFullscreen]);
 
-  // Fullscreen events - только на клиенте
+  // Fullscreen events
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -111,7 +207,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
     };
   }, []);
 
-  // Device detection - только на клиенте
+  // Device detection
   useEffect(() => {
     const checkDevice = () => {
       const isMobileDevice =
@@ -139,7 +235,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
     };
   }, []);
 
-  // Mouse movement handler - только на клиенте
+  // Mouse movement handler для десктопа
   const handleMouseMove = useCallback(() => {
     if (isMobile) return;
 
@@ -148,75 +244,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
     hideUITimeout.current = setTimeout(() => setUiVisible(false), 3000);
   }, [isMobile]);
 
-  // Touch handlers
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    setTouchStart({ x: touch.clientX, y: touch.clientY });
-    setTouchEnd({ x: touch.clientX, y: touch.clientY });
-    setIsSwiping(false);
-  }, []);
-
-  const handleTouchMove = useCallback(
-    (e: React.TouchEvent) => {
-      if (!touchStart.x && !touchStart.y) return;
-
-      const touch = e.touches[0];
-      setTouchEnd({ x: touch.clientX, y: touch.clientY });
-
-      const deltaX = Math.abs(touch.clientX - touchStart.x);
-      const deltaY = Math.abs(touch.clientY - touchStart.y);
-
-      if (deltaX > deltaY && deltaX > 10) {
-        setIsSwiping(true);
-      }
-    },
-    [touchStart]
-  );
-
-  const handleTouchEnd = useCallback(() => {
-    if (!touchStart.x || !touchStart.y) return;
-
-    const deltaX = touchEnd.x - touchStart.x;
-    const deltaY = touchEnd.y - touchStart.y;
-    const absDeltaX = Math.abs(deltaX);
-    const absDeltaY = Math.abs(deltaY);
-
-    if (isSwiping && absDeltaX > absDeltaY && absDeltaX > 50) {
-      if (deltaX > 0 && onPrev && canPrev) {
-        onPrev();
-      } else if (deltaX < 0 && onNext && canNext) {
-        onNext();
-      }
-    } else if (!isSwiping && absDeltaX < 10 && absDeltaY < 10) {
-      if (isMobile && !uiVisible) setUiVisible(true);
-      if (hideUITimeout.current) clearTimeout(hideUITimeout.current);
-      hideUITimeout.current = setTimeout(() => setUiVisible(false), 4000);
-    }
-
-    setTouchStart({ x: 0, y: 0 });
-    setTouchEnd({ x: 0, y: 0 });
-    setIsSwiping(false);
-  }, [
-    touchStart,
-    touchEnd,
-    isSwiping,
-    isMobile,
-    uiVisible,
-    onPrev,
-    onNext,
-    canPrev,
-    canNext,
-  ]);
-
-  // Reset states when photo changes
-  useEffect(() => {
-    setImageLoaded(false);
-    setZoom(1);
-    setRotation(0);
-    setMobileInfoExpanded(false);
-  }, [photo.url]);
-
-  // Auto-hide UI - только для десктопа
+  // Auto-hide UI для десктопа
   useEffect(() => {
     if (isMobile) return;
 
@@ -224,7 +252,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
     return () => clearTimeout(timer);
   }, [isMobile]);
 
-  // Keyboard navigation - только на клиенте
+  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
@@ -243,21 +271,31 @@ const ImageModal: React.FC<ImageModalProps> = ({
           break;
         case "+":
         case "=":
-          setZoom((prev) => Math.min(prev * 1.2, 5));
+          handleZoomIn();
           break;
         case "-":
-          setZoom((prev) => Math.max(prev / 1.2, 0.1));
+          handleZoomOut();
           break;
         case "r":
         case "R":
-          setRotation((prev) => prev + 90);
+          handleRotate();
           break;
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, onPrev, onNext, canPrev, canNext, showInfo]);
+  }, [
+    onClose,
+    onPrev,
+    onNext,
+    canPrev,
+    canNext,
+    showInfo,
+    handleZoomIn,
+    handleZoomOut,
+    handleRotate,
+  ]);
 
   // Cleanup
   useEffect(() => {
@@ -273,9 +311,6 @@ const ImageModal: React.FC<ImageModalProps> = ({
       ref={modalRef}
       className="fixed inset-0 bg-black/95 backdrop-blur-sm flex items-center justify-center z-50 select-none animate-fade-in"
       onMouseMove={handleMouseMove}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
     >
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-10">
@@ -433,12 +468,14 @@ const ImageModal: React.FC<ImageModalProps> = ({
                   </button>
                 </div>
 
-                <div
+                <animated.div
                   className={`flex items-center space-x-2 text-white/60 ${
                     isLandscape ? "text-xs" : "text-xs"
                   }`}
                 >
-                  <span className="font-mono">{Math.round(zoom * 100)}%</span>
+                  <span className="font-mono">
+                    {Math.round(scale.get() * 100)}%
+                  </span>
                   {typeof currentIndex === "number" &&
                     typeof total === "number" && (
                       <>
@@ -448,7 +485,7 @@ const ImageModal: React.FC<ImageModalProps> = ({
                         </span>
                       </>
                     )}
-                </div>
+                </animated.div>
               </div>
             </div>
           )}
@@ -501,23 +538,23 @@ const ImageModal: React.FC<ImageModalProps> = ({
               {/* Zoom Controls */}
               <div className="glass rounded-2xl p-2 flex items-center space-x-1">
                 <button
-                  onClick={() => setZoom((prev) => Math.max(prev / 1.2, 0.1))}
+                  onClick={handleZoomOut}
                   className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200"
                 >
                   <ZoomOut className="w-4 h-4" />
                 </button>
-                <span className="text-white/60 text-sm font-mono w-12 text-center">
-                  {Math.round(zoom * 100)}%
-                </span>
+                <animated.span className="text-white/60 text-sm font-mono w-12 text-center">
+                  {Math.round(scale.get() * 100)}%
+                </animated.span>
                 <button
-                  onClick={() => setZoom((prev) => Math.min(prev * 1.2, 5))}
+                  onClick={handleZoomIn}
                   className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200"
                 >
                   <ZoomIn className="w-4 h-4" />
                 </button>
                 <div className="w-px h-6 bg-white/20 mx-1" />
                 <button
-                  onClick={() => setRotation((prev) => prev + 90)}
+                  onClick={handleRotate}
                   className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200"
                 >
                   <RotateCw className="w-4 h-4" />
@@ -625,29 +662,29 @@ const ImageModal: React.FC<ImageModalProps> = ({
                 }`}
               >
                 <button
-                  onClick={() => setZoom((prev) => Math.max(prev / 1.2, 0.1))}
+                  onClick={handleZoomOut}
                   className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200 touch-manipulation active:scale-95"
                 >
                   <ZoomOut className={isLandscape ? "w-4 h-4" : "w-5 h-5"} />
                 </button>
 
-                <div
+                <animated.div
                   className={`px-2 py-1 font-mono text-white/70 min-w-[50px] text-center ${
                     isLandscape ? "text-xs" : "text-sm"
                   }`}
                 >
-                  {Math.round(zoom * 100)}%
-                </div>
+                  {Math.round(scale.get() * 100)}%
+                </animated.div>
 
                 <button
-                  onClick={() => setZoom((prev) => Math.min(prev * 1.2, 5))}
+                  onClick={handleZoomIn}
                   className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200 touch-manipulation active:scale-95"
                 >
                   <ZoomIn className={isLandscape ? "w-4 h-4" : "w-5 h-5"} />
                 </button>
                 <div className="w-px h-6 bg-white/20" />
                 <button
-                  onClick={() => setRotation((prev) => prev + 90)}
+                  onClick={handleRotate}
                   className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200 touch-manipulation active:scale-95"
                 >
                   <RotateCw className={isLandscape ? "w-4 h-4" : "w-5 h-5"} />
@@ -659,7 +696,12 @@ const ImageModal: React.FC<ImageModalProps> = ({
       }
 
       {/* Image Container */}
-      <div className="flex justify-center items-center w-full h-full relative overflow-hidden">
+      <div
+        ref={imageRef}
+        className="flex justify-center items-center w-full h-full relative overflow-hidden"
+        {...bind()}
+        style={{ touchAction: "none" }}
+      >
         {(!imageLoaded || loading) && (
           <div className="absolute inset-0 flex items-center justify-center z-10">
             <div
@@ -676,31 +718,38 @@ const ImageModal: React.FC<ImageModalProps> = ({
           </div>
         )}
 
-        <div className="relative w-full h-full">
-          <Image
-            fill
-            priority
-            unoptimized
-            quality={100}
-            src={photo.url}
-            alt={photo.name}
-            sizes="100vw"
-            className={`object-contain transition-all duration-500 ${
-              imageLoaded ? "opacity-100" : "opacity-0"
-            }`}
+        <animated.div className="relative w-full h-full">
+          <animated.div
             style={{
-              transform: `scale(${zoom}) rotate(${rotation}deg)`,
-              filter: "drop-shadow(0 0 40px rgba(59, 130, 246, 0.2))",
+              transform: scale.to((s) => `scale(${s})`),
+              rotate: rotateZ.to((r) => `${r}deg`),
             }}
-            onLoad={() => {
-              setImageLoaded(true);
-              onImgLoad?.();
-            }}
-            onError={() => {
-              console.error("Failed to load image:", photo.url);
-            }}
-          />
-        </div>
+            className="w-full h-full relative"
+          >
+            <Image
+              fill
+              priority
+              unoptimized
+              quality={100}
+              src={photo.url}
+              alt={photo.name}
+              sizes="100vw"
+              className={`object-contain transition-opacity duration-500 ${
+                imageLoaded ? "opacity-100" : "opacity-0"
+              }`}
+              style={{
+                filter: "drop-shadow(0 0 40px rgba(59, 130, 246, 0.2))",
+              }}
+              onLoad={() => {
+                setImageLoaded(true);
+                onImgLoad?.();
+              }}
+              onError={() => {
+                console.error("Failed to load image:", photo.url);
+              }}
+            />
+          </animated.div>
+        </animated.div>
       </div>
 
       {/* Desktop Bottom Info Panel */}
